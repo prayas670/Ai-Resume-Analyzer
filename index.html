@@ -15,7 +15,9 @@
 
 <body>
 
+  <div class="aurora-bg" aria-hidden="true"><span></span><span></span><span></span></div>
   <div class="scanline-overlay" aria-hidden="true"></div>
+  <div class="grain-overlay" aria-hidden="true"></div>
 
   <header class="topbar">
     <div class="wrap topbar-inner">
@@ -50,6 +52,9 @@
 
       <div class="deck-col jd-col">
         <div class="ticket-label"><span>02</span> Target role <em>(optional)</em></div>
+        <input type="text" id="targetRoleInput" class="target-role-input"
+          placeholder="Just type a role, e.g. Data Analyst, Software Engineer, Product Manager..." />
+        <p class="jd-or-divider">— or paste a full job description for a deeper match —</p>
         <textarea id="jdInput"
           placeholder="Paste the job description here to get a keyword match score against a specific role..."></textarea>
 
@@ -77,6 +82,7 @@
           </h2>
           <button id="downloadPdfBtn" class="pdf-btn">Download PDF Report</button>
         </div>
+        <div class="stamp" id="gradeStamp" aria-hidden="true"><span id="stampText">CLEARED</span></div>
         <div class="gauge-wrap">
           <svg viewBox="0 0 140 140" class="gauge" id="gaugeSvg">
             <circle cx="70" cy="70" r="60" class="gauge-track" />
@@ -84,7 +90,8 @@
           </svg>
           <div class="gauge-center">
             <span class="gauge-number" id="scoreNumber">0</span>
-            <span class="gauge-max">/100</span>
+            <span class="gauge-max">/10</span>
+            <span class="gauge-grade" id="gaugeGrade"></span>
           </div>
         </div>
       </div>
@@ -116,14 +123,14 @@
         </div>
 
         <div class="card wide" id="sectionScoresCard">
-          <h3>Section-wise score</h3>
+          <h3>Section-wise score <span class="card-subtitle" style="display:inline;">(out of 10)</span></h3>
           <div class="section-bars" id="sectionBars"></div>
         </div>
 
         <div class="card" id="completenessCard">
           <div class="completeness-header">
             <h3>Completeness score</h3>
-            <span class="completeness-pct" id="completenessPct">0%</span>
+            <span class="completeness-pct" id="completenessPct">0.0/10</span>
           </div>
           <div class="completeness-bar-track">
             <div class="completeness-bar-fill" id="completenessBarFill"></div>
@@ -136,12 +143,25 @@
             <h3>ATS risk analysis</h3>
             <span class="risk-badge" id="riskBadge">—</span>
           </div>
+          <p class="card-subtitle" id="atsMlScoreLine" hidden>ML-predicted ATS pass score (XGBoost): <strong id="atsMlScoreValue">—</strong>/10</p>
           <ul class="ats-issues" id="atsIssues"></ul>
         </div>
 
-        <div class="card" id="checklistCard">
-          <h3>Structure checklist</h3>
-          <ul class="checklist" id="checklist"></ul>
+        <div class="card wide" id="profileCard" hidden>
+          <h3>Extracted profile <span class="card-subtitle" style="display:inline;">(spaCy NER)</span></h3>
+          <p class="card-subtitle">Structured education, experience, and certification entries automatically pulled from your resume text.</p>
+          <div class="jd-columns">
+            <div>
+              <h4 class="matched-heading">Education</h4>
+              <ul class="checklist" id="entityEducationList"></ul>
+              <h4 class="matched-heading" style="margin-top:16px;">Certifications</h4>
+              <div class="chips" id="entityCertChips"></div>
+            </div>
+            <div>
+              <h4 class="matched-heading">Work experience</h4>
+              <ul class="checklist" id="entityExperienceList"></ul>
+            </div>
+          </div>
         </div>
 
         <div class="card" id="skillsCard">
@@ -162,21 +182,30 @@
           <ol class="suggestions" id="projectSuggestionsList"></ol>
         </div>
 
-        <div class="card wide" id="starCard" hidden>
-          <h3>STAR Method Analysis</h3>
-          <p class="card-subtitle">Are your bullet points hitting Situation/Task, Action, and Result?</p>
-          <div class="bullet-list" id="starList"></div>
-        </div>
-
         <div class="card wide" id="projectCard" hidden>
           <h3>Project enhancements</h3>
           <p class="card-subtitle" id="projectSubtitle"></p>
           <div class="bullet-list" id="projectList"></div>
         </div>
 
+        <div class="card wide" id="targetRoleCard" hidden>
+          <h3>Target role skill gap</h3>
+          <p class="card-subtitle" id="targetRoleSubtitle"></p>
+          <div class="jd-columns">
+            <div>
+              <h4 class="matched-heading">Skills matched for this role</h4>
+              <div class="chips" id="targetRoleMatchedChips"></div>
+            </div>
+            <div>
+              <h4 class="missing-heading">Skills missing for this role</h4>
+              <div class="chips" id="targetRoleMissingChips"></div>
+            </div>
+          </div>
+        </div>
+
         <div class="card wide" id="jdCard" hidden>
           <h3>Job description match & Skill Gap</h3>
-          <p class="jd-similarity">Similarity score: <strong id="jdSimilarity">0%</strong></p>
+          <p class="jd-similarity">Similarity score: <strong id="jdSimilarity">0.0/10</strong></p>
 
           <div class="jd-columns">
             <div>
@@ -209,6 +238,12 @@
                 </div>
             </div>
           </div>
+        </div>
+
+        <div class="card wide" id="roleSuggestionsCard" hidden>
+          <h3>Suggested roles</h3>
+          <p class="card-subtitle">Based on everything on your resume — like a recruiter scanning it cold — these are the roles you're currently the best fit for.</p>
+          <div class="role-suggestions" id="roleSuggestionsList"></div>
         </div>
 
         <div class="card wide" id="suggestionsCard">

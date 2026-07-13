@@ -10,6 +10,7 @@ const fileNameEl = document.getElementById("fileName");
 const clearFileBtn = document.getElementById("clearFile");
 const analyzeBtn = document.getElementById("analyzeBtn");
 const jdInput = document.getElementById("jdInput");
+const targetRoleInput = document.getElementById("targetRoleInput");
 const aiToggle = document.getElementById("aiToggle");
 const errorMsg = document.getElementById("errorMsg");
 const report = document.getElementById("report");
@@ -95,6 +96,7 @@ analyzeBtn.addEventListener("click", async () => {
   const formData = new FormData();
   formData.append("resume", selectedFile);
   formData.append("job_description", jdInput.value.trim());
+  formData.append("target_role", targetRoleInput.value.trim());
   formData.append("ai_feedback", aiToggle.checked ? "true" : "false");
 
   try {
@@ -127,6 +129,7 @@ function renderReport(data) {
   report.hidden = false;
 
   animateGauge(data.overall_score);
+  renderGrade(data.overall_score);
 
   const levelBadge = document.getElementById("candidateLevelBadge");
   if (levelBadge && data.candidate_level) {
@@ -152,30 +155,26 @@ function renderReport(data) {
     ["Skills coverage", data.skills_score],
   ];
   if (data.jd_match) subs.push(["JD similarity", data.jd_match.similarity]);
-  subs.forEach(([label, val]) => {
+  subs.forEach(([label, val], i) => {
     const div = document.createElement("div");
     div.className = "subscore";
-    div.innerHTML = `<span class="subscore-label">${label}</span><span class="subscore-value">${val}</span>`;
+    div.innerHTML = `<span class="subscore-label">${label}</span><span class="subscore-value">${val == null ? "—" : "0.0/10"}</span>`;
     subRow.appendChild(div);
+    if (val != null) {
+      const valueEl = div.querySelector(".subscore-value");
+      setTimeout(() => countUpTo(valueEl, val / 10, "/10"), i * 60);
+    }
   });
 
   renderSectionScores(data.section_scores);
   renderHeatmap(data.section_scores);
   renderCompleteness(data.completeness);
   renderAtsRisk(data.ats_risk);
+  renderEntityProfile(data.entities);
   renderBulletRewrites(data.bullet_rewrites);
-  renderStarAnalysis(data.star_analysis);
   renderProjectEnhancements(data.project_enhancements);
+  renderProjectQuality(data);
   renderDashboard(data);
-
-  const checklist = document.getElementById("checklist");
-  checklist.innerHTML = "";
-  data.structure_checks.forEach(([label, passed]) => {
-    const li = document.createElement("li");
-    li.className = passed ? "pass" : "fail";
-    li.innerHTML = `<span class="mark">${passed ? "✓" : "✕"}</span><span>${label}</span>`;
-    checklist.appendChild(li);
-  });
 
   const skillChips = document.getElementById("skillChips");
   skillChips.innerHTML = "";
@@ -191,6 +190,8 @@ function renderReport(data) {
   }
 
   renderJDMatch(data);
+  renderTargetRoleMatch(data);
+  renderSuggestedRoles(data);
 
   const suggList = document.getElementById("suggestionsList");
   suggList.innerHTML = "";
@@ -208,7 +209,44 @@ function renderReport(data) {
     aiCard.hidden = true;
   }
 
+  initScrollReveal();
   report.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// --- Scroll-reveal animation ------------------------------------------------
+// Fades/slides each visible card up into place as it enters the viewport,
+// with a light stagger so the report doesn't just pop in all at once.
+let scrollRevealObserver = null;
+
+function initScrollReveal() {
+  const targets = Array.from(document.querySelectorAll("#report .card, #report .subscore"))
+    .filter((el) => !el.hidden && el.offsetParent !== null);
+
+  targets.forEach((el, i) => {
+    el.classList.remove("in-view");
+    el.classList.add("reveal");
+    el.style.transitionDelay = `${Math.min(i * 40, 400)}ms`;
+  });
+
+  if (scrollRevealObserver) scrollRevealObserver.disconnect();
+  scrollRevealObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const el = entry.target;
+          el.classList.add("in-view");
+          scrollRevealObserver.unobserve(el);
+          // The inline transition-delay was only needed for the initial
+          // stagger; clear it afterwards so hover transitions on this card
+          // stay snappy instead of inheriting that same delay forever.
+          setTimeout(() => { el.style.transitionDelay = ""; }, 1000);
+        }
+      });
+    },
+    { threshold: 0.1, rootMargin: "0px 0px -40px 0px" }
+  );
+
+  targets.forEach((el) => scrollRevealObserver.observe(el));
 }
 
 function renderKeywordChips(containerId, keywords, chipClass, emptyText) {
@@ -229,33 +267,86 @@ function renderKeywordChips(containerId, keywords, chipClass, emptyText) {
   });
 }
 
-function renderDensityChips(containerId, densityMap) {
+function renderDensityChips(containerId, keywords, densityMap, isMatch) {
   const el = document.getElementById(containerId);
   el.innerHTML = "";
-  const entries = Object.entries(densityMap);
-  if (entries.length === 0) {
+  const list = keywords || [];
+  if (list.length === 0) {
     const span = document.createElement("span");
     span.className = "dz-sub";
-    span.textContent = "None found";
+    span.textContent = isMatch ? "None matched yet" : "None found";
     el.appendChild(span);
     return;
   }
+  const entries = list.map((k) => [k, (densityMap && densityMap[k]) || 0]);
   entries.sort((a, b) => b[1] - a[1]); // Sort by density descending
   entries.forEach(([k, count]) => {
     const span = document.createElement("span");
-    span.className = `chip match density`;
-    span.innerHTML = `${escapeHtml(k)} <span class="density-badge">${count}</span>`;
+    span.className = `chip ${isMatch ? "match" : "miss"} density`;
+    span.innerHTML = isMatch && count
+      ? `${escapeHtml(k)} <span class="density-badge">${count}</span>`
+      : escapeHtml(k);
     el.appendChild(span);
   });
 }
 
 function scoreColor(score) {
-  if (score < 50) return "#E85D4F"; // coral
-  if (score < 75) return "#FFB627"; // amber
-  return "#2E9E6B"; // green
+  if (score < 50) return "#E2584F"; // coral
+  if (score < 75) return "#D9A238"; // amber
+  return "#4FBE82"; // green
 }
 
 // --- Section-wise score ------------------------------------------------------
+
+// --- Overall letter grade ----------------------------------------------------
+
+function scoreToGrade(score) {
+  if (score >= 97) return "A+";
+  if (score >= 93) return "A";
+  if (score >= 90) return "A-";
+  if (score >= 87) return "B+";
+  if (score >= 83) return "B";
+  if (score >= 80) return "B-";
+  if (score >= 77) return "C+";
+  if (score >= 73) return "C";
+  if (score >= 70) return "C-";
+  if (score >= 65) return "D+";
+  if (score >= 60) return "D";
+  return "F";
+}
+
+function renderGrade(score) {
+  const el = document.getElementById("gaugeGrade");
+  if (!el) return;
+  const grade = scoreToGrade(score);
+  el.textContent = grade;
+  el.className = "gauge-grade grade-" + grade[0].toLowerCase();
+  stampVerdict(grade);
+}
+
+// Drives the signature ink-stamp: re-plays the thud animation on every
+// scan and picks a verdict + color consistent with the letter grade,
+// echoing the "reviewer marks the file" framing of the product.
+function stampVerdict(grade) {
+  const stamp = document.getElementById("gradeStamp");
+  const text = document.getElementById("stampText");
+  if (!stamp || !text) return;
+
+  const letter = grade[0];
+  let verdict = "REVIEW";
+  let color = "#D9A238"; // amber
+  if (letter === "A") { verdict = "CLEARED"; color = "#4FBE82"; }
+  else if (letter === "B") { verdict = "STRONG"; color = "#3E9C8C"; }
+  else if (letter === "C") { verdict = "REVIEW"; color = "#D9A238"; }
+  else { verdict = "FLAGGED"; color = "#E2584F"; }
+
+  text.textContent = verdict;
+  stamp.style.setProperty("--stamp-color", color);
+  stamp.classList.remove("show");
+  // eslint-disable-next-line no-unused-expressions
+  void stamp.offsetWidth; // restart the CSS animation on repeat scans
+  requestAnimationFrame(() => stamp.classList.add("show"));
+}
 
 function renderSectionScores(sectionScores) {
   const wrap = document.getElementById("sectionBars");
@@ -285,7 +376,7 @@ function renderSectionScores(sectionScores) {
 
     const valueEl = document.createElement("div");
     valueEl.className = "section-bar-value";
-    valueEl.textContent = s.score == null ? "—" : `${s.score}`;
+    valueEl.textContent = s.score == null ? "—" : `${(s.score / 10).toFixed(1)}/10`;
 
     row.appendChild(label);
     row.appendChild(track);
@@ -320,7 +411,8 @@ function renderHeatmap(sectionScores) {
     // Coral/Green/Amber are all relatively dark, so white text usually works best
     block.style.color = "#fff";
     
-    block.innerHTML = `<span class="heatmap-label">${escapeHtml(s.label)}</span><span class="heatmap-score">${s.score}</span>`;
+    const displayScore = s.score == null ? "—" : (s.score / 10).toFixed(1);
+    block.innerHTML = `<span class="heatmap-label">${escapeHtml(s.label)}</span><span class="heatmap-score">${displayScore}/10</span>`;
     container.appendChild(block);
   });
 }
@@ -328,7 +420,7 @@ function renderHeatmap(sectionScores) {
 
 function renderCompleteness(completeness) {
   if (!completeness) return;
-  document.getElementById("completenessPct").textContent = `${completeness.score}%`;
+  document.getElementById("completenessPct").textContent = `${(completeness.score / 10).toFixed(1)}/10`;
 
   const fill = document.getElementById("completenessBarFill");
   fill.style.width = "0%";
@@ -352,6 +444,15 @@ function renderAtsRisk(atsRisk) {
   badge.textContent = `${atsRisk.risk_level} risk`;
   badge.className = `risk-badge ${atsRisk.risk_level.toLowerCase()}`;
 
+  const mlLine = document.getElementById("atsMlScoreLine");
+  const mlValue = document.getElementById("atsMlScoreValue");
+  if (atsRisk.ml_ats_score !== null && atsRisk.ml_ats_score !== undefined) {
+    mlLine.hidden = false;
+    mlValue.textContent = (atsRisk.ml_ats_score / 10).toFixed(1);
+  } else if (mlLine) {
+    mlLine.hidden = true;
+  }
+
   const list = document.getElementById("atsIssues");
   list.innerHTML = "";
   if (!atsRisk.issues.length) {
@@ -367,6 +468,72 @@ function renderAtsRisk(atsRisk) {
     li.innerHTML = `<span class="ats-issue-title">${issue.issue}</span><p class="ats-issue-tip">${issue.tip}</p>`;
     list.appendChild(li);
   });
+}
+
+// --- Extracted profile (spaCy: education / experience / certifications) ------
+
+function renderEntityProfile(entities) {
+  const card = document.getElementById("profileCard");
+  if (!entities) {
+    card.hidden = true;
+    return;
+  }
+
+  const hasAny = (entities.education && entities.education.length)
+    || (entities.experience && entities.experience.length)
+    || (entities.certifications && entities.certifications.length);
+  if (!hasAny) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+
+  const eduList = document.getElementById("entityEducationList");
+  eduList.innerHTML = "";
+  if (!entities.education.length) {
+    const li = document.createElement("li");
+    li.textContent = "No degree detected.";
+    eduList.appendChild(li);
+  } else {
+    entities.education.forEach((edu) => {
+      const li = document.createElement("li");
+      const parts = [edu.degree];
+      if (edu.institution) parts.push(edu.institution);
+      if (edu.year) parts.push(edu.year);
+      li.innerHTML = `<span class="mark">🎓</span><span>${parts.join(" — ")}</span>`;
+      eduList.appendChild(li);
+    });
+  }
+
+  const expList = document.getElementById("entityExperienceList");
+  expList.innerHTML = "";
+  if (!entities.experience.length) {
+    const li = document.createElement("li");
+    li.textContent = "No structured role/company entries detected.";
+    expList.appendChild(li);
+  } else {
+    entities.experience.forEach((exp) => {
+      const li = document.createElement("li");
+      const parts = [exp.title];
+      if (exp.organization) parts.push(exp.organization);
+      if (exp.dates) parts.push(exp.dates);
+      li.innerHTML = `<span class="mark">💼</span><span>${parts.join(" — ")}</span>`;
+      expList.appendChild(li);
+    });
+  }
+
+  const certChips = document.getElementById("entityCertChips");
+  certChips.innerHTML = "";
+  if (!entities.certifications.length) {
+    certChips.innerHTML = `<span class="dz-sub">No certifications detected.</span>`;
+  } else {
+    entities.certifications.forEach((cert) => {
+      const span = document.createElement("span");
+      span.className = "chip match";
+      span.textContent = cert;
+      certChips.appendChild(span);
+    });
+  }
 }
 
 // --- Bullet point rewrites --------------------------------------------------------
@@ -399,44 +566,24 @@ function renderBulletRewrites(bulletRewrites) {
   });
 }
 
+// Animates a "0.0/10"-style value counting up from zero — used for
+// subscore tiles so the report reads as measured rather than static.
+function countUpTo(el, targetValue, suffix, duration = 700) {
+  const start = performance.now();
+  function tick(now) {
+    const progress = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    el.textContent = `${(eased * targetValue).toFixed(1)}${suffix}`;
+    if (progress < 1) requestAnimationFrame(tick);
+    else el.textContent = `${targetValue.toFixed(1)}${suffix}`;
+  }
+  requestAnimationFrame(tick);
+}
+
 function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str;
   return div.innerHTML;
-}
-
-// --- STAR Method Analysis -----------------------------------------------------
-
-function renderStarAnalysis(starAnalysis) {
-  const card = document.getElementById("starCard");
-  const list = document.getElementById("starList");
-  list.innerHTML = "";
-  
-  if (!starAnalysis || starAnalysis.length === 0) {
-    card.hidden = true;
-    return;
-  }
-  card.hidden = false;
-  
-  starAnalysis.forEach(item => {
-    const div = document.createElement("div");
-    div.className = "bullet-item";
-    
-    let badges = [];
-    if (item.has_action) badges.push(`<span class="star-badge action">Action</span>`);
-    if (item.has_context) badges.push(`<span class="star-badge context">Context</span>`);
-    if (item.has_result) badges.push(`<span class="star-badge result">Result</span>`);
-    
-    if (badges.length === 0) {
-       badges.push(`<span class="star-badge none">Needs Improvement</span>`);
-    }
-    
-    div.innerHTML = `
-      <div class="bullet-original" style="margin-bottom: 8px;"><span>${escapeHtml(item.text)}</span></div>
-      <div class="star-badges">${badges.join("")}</div>
-    `;
-    list.appendChild(div);
-  });
 }
 
 function animateGauge(score) {
@@ -444,9 +591,9 @@ function animateGauge(score) {
   const fill = document.getElementById("gaugeFill");
   const offset = circumference - (score / 100) * circumference;
 
-  let color = "#2E9E6B"; // green
-  if (score < 50) color = "#E85D4F"; // coral
-  else if (score < 75) color = "#FFB627"; // amber
+  let color = "#4FBE82"; // green
+  if (score < 50) color = "#E2584F"; // coral
+  else if (score < 75) color = "#D9A238"; // amber
   fill.style.stroke = color;
 
   // reset then animate
@@ -458,15 +605,16 @@ function animateGauge(score) {
   });
 
   let current = 0;
-  const target = score;
+  const target = score / 10;
   const duration = 800;
   const start = performance.now();
   const numberEl = document.getElementById("scoreNumber");
   function tick(now) {
     const progress = Math.min((now - start) / duration, 1);
-    current = Math.round(progress * target);
-    numberEl.textContent = current;
+    current = progress * target;
+    numberEl.textContent = current.toFixed(1);
     if (progress < 1) requestAnimationFrame(tick);
+    else numberEl.textContent = target.toFixed(1);
   }
   requestAnimationFrame(tick);
 }
@@ -490,6 +638,21 @@ if (downloadPdfBtn) {
 let radarChartInstance = null;
 let barChartInstance = null;
 
+// Shared modern tooltip styling for all charts — rounded, padded, glass-y.
+const CHART_TOOLTIP_BASE = {
+  backgroundColor: 'rgba(18, 19, 15, 0.92)',
+  titleColor: '#F2ECDD',
+  bodyColor: '#C9BFA9',
+  borderColor: 'rgba(204, 149, 68, 0.35)',
+  borderWidth: 1,
+  padding: 10,
+  cornerRadius: 10,
+  displayColors: true,
+  boxPadding: 4,
+  titleFont: { family: "'Outfit', sans-serif", weight: '600', size: 13 },
+  bodyFont: { family: "'Inter', sans-serif", size: 12.5 },
+};
+
 function renderDashboard(data) {
   document.getElementById("dashboardGrid").style.display = "grid";
 
@@ -503,6 +666,10 @@ function renderDashboard(data) {
     dataRadar.push(data.jd_match.similarity);
   }
 
+  const radarFill = ctxRadar.createLinearGradient(0, 0, 0, 260);
+  radarFill.addColorStop(0, 'rgba(204, 149, 68, 0.38)');
+  radarFill.addColorStop(1, 'rgba(62, 156, 140, 0.08)');
+
   radarChartInstance = new Chart(ctxRadar, {
     type: 'radar',
     data: {
@@ -510,16 +677,35 @@ function renderDashboard(data) {
       datasets: [{
         label: 'Score',
         data: dataRadar,
-        backgroundColor: 'rgba(46, 158, 107, 0.2)',
-        borderColor: '#2E9E6B',
-        pointBackgroundColor: '#2E9E6B',
+        backgroundColor: radarFill,
+        borderColor: '#CC9544',
+        borderWidth: 2.5,
+        pointBackgroundColor: '#0B0D0B',
+        pointBorderColor: '#3E9C8C',
+        pointBorderWidth: 2,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        pointHoverBackgroundColor: '#3E9C8C',
+        pointHoverBorderColor: '#F2ECDD',
+        tension: 0.15,
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: { duration: 900, easing: 'easeOutQuart' },
       scales: {
-        r: { min: 0, max: 100 }
+        r: {
+          min: 0, max: 100,
+          angleLines: { color: 'rgba(242,236,221,0.07)' },
+          grid: { color: 'rgba(242,236,221,0.07)', circular: true },
+          pointLabels: { color: '#C9BFA9', font: { family: "'Inter', sans-serif", size: 12, weight: '500' } },
+          ticks: { color: '#7A705C', backdropColor: 'transparent', stepSize: 25 }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { ...CHART_TOOLTIP_BASE, callbacks: { label: (ctx) => ` ${ctx.label}: ${ctx.raw}/100` } }
       }
     }
   });
@@ -531,8 +717,15 @@ function renderDashboard(data) {
   const dataBar = [];
   Object.values(data.section_scores).forEach(s => {
     labelsBar.push(s.label);
-    dataBar.push(s.score || 0);
+    dataBar.push((s.score || 0) / 10);
   });
+
+  const barFill = ctxBar.createLinearGradient(0, 0, 0, 260);
+  barFill.addColorStop(0, '#3E9C8C');
+  barFill.addColorStop(1, '#CC9544');
+  const barHoverFill = ctxBar.createLinearGradient(0, 0, 0, 260);
+  barHoverFill.addColorStop(0, '#E3B563');
+  barHoverFill.addColorStop(1, '#B98A3E');
 
   barChartInstance = new Chart(ctxBar, {
     type: 'bar',
@@ -541,14 +734,33 @@ function renderDashboard(data) {
       datasets: [{
         label: 'Section Score',
         data: dataBar,
-        backgroundColor: '#FFB627',
+        backgroundColor: barFill,
+        hoverBackgroundColor: barHoverFill,
+        borderRadius: 8,
+        borderSkipped: false,
+        maxBarThickness: 42,
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: { duration: 900, easing: 'easeOutQuart' },
       scales: {
-        y: { beginAtZero: true, max: 100 }
+        y: {
+          beginAtZero: true, max: 10,
+          grid: { color: 'rgba(242,236,221,0.05)' },
+          border: { display: false },
+          ticks: { color: '#7A705C', font: { size: 11 } }
+        },
+        x: {
+          grid: { display: false },
+          border: { display: false },
+          ticks: { color: '#C9BFA9', font: { family: "'Inter', sans-serif", size: 11.5, weight: '500' } }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { ...CHART_TOOLTIP_BASE, callbacks: { label: (ctx) => ` ${Number(ctx.formattedValue).toFixed(1)}/10` } }
       }
     }
   });
@@ -558,27 +770,68 @@ let skillGapChartInstance = null;
 function renderSkillGap(matchedList, missingList) {
   const ctx = document.getElementById("skillGapChart").getContext("2d");
   if (skillGapChartInstance) skillGapChartInstance.destroy();
-  
+
   const matchedCount = matchedList ? matchedList.length : 0;
   const missingCount = missingList ? missingList.length : 0;
-  
+
+  const matchedFill = ctx.createLinearGradient(0, 0, 0, 200);
+  matchedFill.addColorStop(0, '#6ED4A3');
+  matchedFill.addColorStop(1, '#3E9C8C');
+  const missingFill = ctx.createLinearGradient(0, 0, 0, 200);
+  missingFill.addColorStop(0, '#EB8079');
+  missingFill.addColorStop(1, '#E2584F');
+
+  // Center-text plugin: shows the match % in the doughnut hole so the chart
+  // reads at a glance instead of requiring the legend to be parsed first.
+  const centerTextPlugin = {
+    id: 'centerText',
+    afterDraw(chart) {
+      const total = matchedCount + missingCount;
+      if (!total) return;
+      const pct = Math.round((matchedCount / total) * 100);
+      const { ctx, chartArea: { left, right, top, bottom } } = chart;
+      const cx = (left + right) / 2;
+      const cy = (top + bottom) / 2;
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = "700 26px 'Outfit', sans-serif";
+      ctx.fillStyle = '#F2ECDD';
+      ctx.fillText(`${pct}%`, cx, cy - 8);
+      ctx.font = "600 10.5px 'JetBrains Mono', monospace";
+      ctx.fillStyle = '#A69C87';
+      ctx.fillText('MATCHED', cx, cy + 14);
+      ctx.restore();
+    }
+  };
+
   skillGapChartInstance = new Chart(ctx, {
     type: 'doughnut',
     data: {
       labels: ['Matched', 'Missing'],
       datasets: [{
         data: [matchedCount, missingCount],
-        backgroundColor: ['#2E9E6B', '#E85D4F'],
-        borderWidth: 0
+        backgroundColor: [matchedFill, missingFill],
+        borderColor: '#12140F',
+        borderWidth: 3,
+        hoverOffset: 10,
+        spacing: 2,
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      cutout: '72%',
+      animation: { duration: 900, easing: 'easeOutQuart', animateRotate: true, animateScale: true },
       plugins: {
-        legend: { position: 'bottom' }
+        legend: {
+          position: 'bottom',
+          labels: { color: '#C9BFA9', font: { family: "'Inter', sans-serif", size: 12 }, usePointStyle: true, pointStyle: 'circle', padding: 16 }
+        },
+        tooltip: CHART_TOOLTIP_BASE
       }
-    }
+    },
+    plugins: [centerTextPlugin]
   });
 }
 
@@ -612,7 +865,7 @@ function renderProjectEnhancements(projectEnhancements) {
 
 function renderProjectQuality(data) {
   const c = document.getElementById("projectQualityCard");
-  if (!data.project_quality || !data.project_quality.metrics) {
+  if (!data.project_quality || !data.project_quality.metrics || Object.keys(data.project_quality.metrics).length === 0) {
     c.hidden = true;
     return;
   }
@@ -630,11 +883,15 @@ function renderProjectQuality(data) {
     { label: "Action Verbs", score: pq.metrics.action_verbs_score }
   ];
 
-  subs.forEach(s => {
+  subs.forEach((s, i) => {
     const div = document.createElement("div");
     div.className = "subscore";
-    div.innerHTML = `<span class="subscore-label">${s.label}</span><span class="subscore-value">${s.score}</span>`;
+    div.innerHTML = `<span class="subscore-label">${s.label}</span><span class="subscore-value">${s.score == null ? "—" : "0.0/10"}</span>`;
     r.appendChild(div);
+    if (s.score != null) {
+      const valueEl = div.querySelector(".subscore-value");
+      setTimeout(() => countUpTo(valueEl, s.score / 10, "/10"), i * 60);
+    }
   });
 
   const sl = document.getElementById("projectSuggestionsList");
@@ -646,6 +903,92 @@ function renderProjectQuality(data) {
   });
 }
 
+function renderSuggestedRoles(data) {
+  const c = document.getElementById("roleSuggestionsCard");
+  const list = document.getElementById("roleSuggestionsList");
+  const roles = data.suggested_roles;
+
+  if (!roles || roles.length === 0) {
+    c.hidden = true;
+    return;
+  }
+  c.hidden = false;
+  list.innerHTML = "";
+
+  roles.forEach((r) => {
+    const item = document.createElement("div");
+    item.className = "role-suggestion";
+
+    const missingText = r.missing_skills && r.missing_skills.length
+      ? `<span class="role-suggestion-missing"><strong>To strengthen this fit:</strong> ${escapeHtml(r.missing_skills.slice(0, 5).join(", "))}</span>`
+      : `<span class="role-suggestion-missing">No notable gaps — you're covered on the essentials.</span>`;
+
+    item.innerHTML = `
+      <div class="role-suggestion-head">
+        <span class="role-suggestion-name">${escapeHtml(r.role)}</span>
+        <span class="role-suggestion-score">${r.match_score}% match</span>
+      </div>
+      <div class="role-suggestion-bar-track">
+        <div class="role-suggestion-bar-fill" style="width:0%"></div>
+      </div>
+      <p class="role-suggestion-blurb">${escapeHtml(r.blurb)}</p>
+      ${missingText}
+    `;
+    list.appendChild(item);
+
+    requestAnimationFrame(() => {
+      item.querySelector(".role-suggestion-bar-fill").style.width = `${r.match_score}%`;
+    });
+  });
+}
+
+function renderTargetRoleMatch(data) {
+  const c = document.getElementById("targetRoleCard");
+  const trm = data.target_role_match;
+  if (!trm) {
+    c.hidden = true;
+    return;
+  }
+  c.hidden = false;
+
+  const subtitle = document.getElementById("targetRoleSubtitle");
+  const matchedWrap = document.getElementById("targetRoleMatchedChips");
+  const missingWrap = document.getElementById("targetRoleMissingChips");
+  matchedWrap.innerHTML = "";
+  missingWrap.innerHTML = "";
+
+  if (!trm.recognized) {
+    subtitle.textContent = `"${trm.role_input}" wasn't recognized — try a more common title (e.g. "Data Analyst", "Software Engineer", "Product Manager").`;
+    matchedWrap.innerHTML = "";
+    missingWrap.innerHTML = "";
+    return;
+  }
+
+  subtitle.textContent = `Matched against typical "${trm.matched_role}" skills — ${trm.match_score}% coverage.`;
+
+  if (trm.matched_skills.length === 0) {
+    matchedWrap.innerHTML = `<span class="dz-sub">None yet.</span>`;
+  } else {
+    trm.matched_skills.forEach((s) => {
+      const span = document.createElement("span");
+      span.className = "chip match";
+      span.textContent = s;
+      matchedWrap.appendChild(span);
+    });
+  }
+
+  if (trm.missing_skills.length === 0) {
+    missingWrap.innerHTML = `<span class="dz-sub">Nothing missing — great coverage!</span>`;
+  } else {
+    trm.missing_skills.forEach((s) => {
+      const span = document.createElement("span");
+      span.className = "chip miss";
+      span.textContent = s;
+      missingWrap.appendChild(span);
+    });
+  }
+}
+
 function renderJDMatch(data) {
   const c = document.getElementById("jdCard");
   if (!data.jd_match) {
@@ -655,7 +998,7 @@ function renderJDMatch(data) {
   c.hidden = false;
 
   const jd = data.jd_match;
-  document.getElementById("jdSimilarity").textContent = jd.similarity + "%";
+  document.getElementById("jdSimilarity").textContent = (jd.similarity / 10).toFixed(1) + "/10";
 
   renderDensityChips("reqMatchedChips", jd.required_matched || [], jd.keyword_density, true);
   renderDensityChips("reqMissingChips", jd.required_missing || [], jd.keyword_density, false);

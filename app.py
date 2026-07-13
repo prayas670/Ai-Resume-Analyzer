@@ -5,6 +5,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
 from analyzer import extract_text, score_resume, get_ai_feedback, analyze_ats_risk, get_bullet_rewrites, get_project_enhancements
+import ml_models
 
 FRONTEND_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -26,7 +27,18 @@ def index():
 
 @app.route("/api/health")
 def health():
-    return jsonify({"status": "ok", "ai_feedback_enabled": bool(os.environ.get("GROQ_API_KEY"))})
+    return jsonify({
+        "status": "ok",
+        "ai_feedback_enabled": bool(os.environ.get("GROQ_API_KEY")),
+        # Surfaces which of the three ML integrations are actually active in
+        # this deployment (each degrades gracefully to rule-based logic if
+        # its package/model file is missing) — handy for debugging setup.
+        "ml_models": {
+            "sbert_jd_matching": ml_models.get_sbert_model() is not None,
+            "spacy_entity_extraction": ml_models.get_spacy_nlp() is not None,
+            "xgboost_ats_score": ml_models.get_ats_model() is not None,
+        },
+    })
 
 
 @app.route("/api/analyze", methods=["POST"])
@@ -48,6 +60,7 @@ def analyze():
         return jsonify({"error": "File too large. Max size is 5 MB."}), 400
 
     jd_text = request.form.get("job_description", "").strip()
+    target_role = request.form.get("target_role", "").strip()
     want_ai_feedback = request.form.get("ai_feedback", "false").lower() == "true"
 
     suffix = "." + file.filename.rsplit(".", 1)[-1].lower()
@@ -61,7 +74,12 @@ def analyze():
             return jsonify({"error": "Could not extract any text from this file. Try a different format."}), 422
 
         ats_risk = analyze_ats_risk(tmp_path, file.filename, text)
-        analysis = score_resume(text, jd_text if jd_text else None, ats_risk=ats_risk)
+        analysis = score_resume(
+            text,
+            jd_text if jd_text else None,
+            ats_risk=ats_risk,
+            target_role=target_role if target_role else None,
+        )
         analysis["ats_risk"] = ats_risk
 
         # Bullet point rewrite suggestions — uses the AI reviewer for higher

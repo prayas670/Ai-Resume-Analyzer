@@ -11,6 +11,7 @@ key, the rule-based engine still produces a complete report.
 import os
 import re
 import json
+import difflib
 from datetime import datetime
 
 import requests
@@ -18,20 +19,24 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from flashtext import KeywordProcessor
-try:
-    from sentence_transformers import SentenceTransformer
-    from sentence_transformers.util import cos_sim
-except ImportError:
-    SentenceTransformer = None
 
-_st_model = None
+# ML model integrations (Sentence-BERT semantic matching, spaCy structured
+# extraction, XGBoost ATS-score prediction) all live in ml_models.py. Every
+# function there degrades gracefully to None if a package/model file isn't
+# installed, so analyzer.py always has a rule-based fallback.
+import ml_models
+from ml_models import (
+    sbert_similarity,
+    extract_entities_spacy,
+    build_ats_feature_vector,
+    predict_ats_score,
+)
+
+
 def get_st_model():
-    global _st_model
-    if _st_model is None and SentenceTransformer is not None:
-        import logging
-        logging.getLogger("sentence_transformers").setLevel(logging.ERROR)
-        _st_model = SentenceTransformer("all-MiniLM-L6-v2")
-    return _st_model
+    # Kept for backwards compatibility with any existing callers; the real
+    # implementation now lives in ml_models.get_sbert_model().
+    return ml_models.get_sbert_model()
 
 # --------------------------------------------------------------------------
 # Reference data
@@ -72,6 +77,12 @@ ACTION_VERBS = {
     "led", "managed", "optimized", "orchestrated", "pioneered", "reduced",
     "resolved", "spearheaded", "streamlined", "transformed", "boosted",
     "automated", "architected", "negotiated", "mentored", "scaled",
+    "deployed", "served", "shipped", "maintained", "integrated", "authored",
+    "migrated", "configured", "monitored", "processed", "analyzed", "tested",
+    "debugged", "refactored", "wrote", "trained", "containerized",
+    "provisioned", "presented", "published", "collaborated", "coordinated",
+    "supported", "enhanced", "upgraded", "consolidated", "standardized",
+    "modernized", "documented", "administered", "diagnosed", "instrumented",
 }
 
 WEAK_PHRASES = [
@@ -111,12 +122,25 @@ DOMAINS = {
     "Mobile Development": {"swift", "kotlin", "react native", "flutter", "dart", "objective-c", "mobile", "ios", "android"},
 }
 
+# Section headers in real resumes are rarely just the bare word — they show
+# up as "Key Projects", "PROJECTS ----------", "3. Projects", "Notable
+# Projects:", etc. The previous patterns required the ENTIRE line to be
+# nothing but the literal word (e.g. "^projects?$"), so any of those common
+# variants fell through, the "projects" chunk stayed empty, and the project
+# quality score/section score silently reported 0 / "not found" even when a
+# perfectly good Projects section was right there. These patterns now allow
+# a leading qualifier word and leading/trailing decorative characters
+# (bullets, numbering, dashes, colons) while still requiring the header be
+# essentially standalone, so normal body/bullet text still won't misfire.
+_HEAD_LEAD = r"^\s*[-=~#>*•\u2022\u2500\u2501\u2504\u2508│┃]*\s*(\d+[\.\)]\s*)?"
+_HEAD_TAIL = r"\s*[-=~#>*•\u2022\u2500\u2501\u2504\u2508│┃:|]*\s*$"
+
 SECTION_HEADER_PATTERNS = [
-    ("summary", r"^\s*(summary|objective|profile|about me|professional summary)\s*:?\s*$"),
-    ("experience", r"^\s*(experience|employment|employment history|work history|professional experience|work experience|internships?)\s*:?\s*$"),
-    ("education", r"^\s*(education|academic background|academics)\s*:?\s*$"),
-    ("skills", r"^\s*(skills|technical skills|core competencies|competencies|technologies)\s*:?\s*$"),
-    ("projects", r"^\s*(projects?|personal projects|academic projects)\s*:?\s*$"),
+    ("summary", _HEAD_LEAD + r"(professional\s+|career\s+)?(summary|objective|profile|about\s*me)" + _HEAD_TAIL),
+    ("experience", _HEAD_LEAD + r"((professional|relevant|work)\s+)?(experience|employment(\s+history)?|work\s+history|internships?)" + _HEAD_TAIL),
+    ("education", _HEAD_LEAD + r"(education(al)?(\s+background)?|academics?|academic\s+background|qualifications)" + _HEAD_TAIL),
+    ("skills", _HEAD_LEAD + r"((technical|core|key|professional)\s+)?(skills|competenc(y|ies)|technologies)" + _HEAD_TAIL),
+    ("projects", _HEAD_LEAD + r"((key|notable|personal|academic|major|github|side|featured|selected)\s+)?projects?" + _HEAD_TAIL),
 ]
 
 SECTION_PATTERNS = {
@@ -152,14 +176,28 @@ opportunity opportunities company companies join great good etc
 def extract_text(filepath, filename):
     ext = filename.rsplit(".", 1)[-1].lower()
     if ext == "pdf":
-        import pdfplumber
+        try:
+            import pdfplumber
+        except ImportError:
+            raise ValueError(
+                "PDF support isn't installed on this server. Run "
+                "'pip install -r requirements.txt' (or just 'pip install pdfplumber') "
+                "in the same Python environment used to start app.py, then restart the server."
+            )
         text = []
         with pdfplumber.open(filepath) as pdf:
             for page in pdf.pages:
                 text.append(page.extract_text() or "")
         return "\n".join(text)
     elif ext == "docx":
-        import docx
+        try:
+            import docx
+        except ImportError:
+            raise ValueError(
+                "DOCX support isn't installed on this server. Run "
+                "'pip install -r requirements.txt' (or just 'pip install python-docx') "
+                "in the same Python environment used to start app.py, then restart the server."
+            )
         doc = docx.Document(filepath)
         return "\n".join(p.text for p in doc.paragraphs)
     elif ext == "txt":
@@ -175,19 +213,53 @@ def extract_text(filepath, filename):
 
 def extract_contact_info(text):
     email = re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", text)
-    # Requires an actual separator (space/dot/dash or parentheses) between the
-    # area code and the rest of the number, and forbids adjacent digits on
-    # either side. The previous version made every separator optional, so any
-    # bare 10-digit run in the text (an ID number, a big dollar figure, a zip
-    # code glued to something else) was misread as a phone number.
-    phone = re.search(
-        r"(?<!\d)(\+?\d{1,3}[\s.-]?)?(\(\d{3}\)|\d{3})[\s.-]\d{3}[\s.-]?\d{4}(?!\d)",
+    # Phone detection runs a few strategies, from most to least specific, and
+    # stops at the first hit:
+    #
+    # 1. Label-anchored: a "Phone"/"Mobile"/"Cell"/"Tel"/"Contact"/"WhatsApp"
+    #    label immediately followed by a digit run. This is the most reliable
+    #    signal (it's explicitly called out as a phone number by the resume
+    #    itself) and lets us safely accept formats that would otherwise be
+    #    ambiguous, e.g. a bare 10-digit Indian mobile number with no
+    #    separators at all ("Phone: 9876543210").
+    # 2. Separator-delimited: requires an actual separator (space/dot/dash or
+    #    parentheses) between digit groups and forbids adjacent digits on
+    #    either side, so a bare digit run elsewhere in the text (an ID number,
+    #    a big dollar figure, a zip code glued to something else) isn't
+    #    misread as a phone number. Covers formats like (123) 456-7890,
+    #    +44 20 7946 0958, +91-98765-43210, etc.
+    # 3. Bare digit run: a 10-13 digit sequence (optionally with a leading
+    #    country code) not adjacent to other digits. Looser than #2, but still
+    #    guarded by the lookaround, so it catches unlabeled numbers written
+    #    with no separators at all (common outside the US, e.g. plain
+    #    10-digit Indian mobile numbers) without matching things like a
+    #    12-digit ID glued between two words.
+    phone = None
+
+    labeled = re.search(
+        r"(?:phone|mobile|cell|tel(?:ephone)?|contact(?:\s*(?:no|number))?|whatsapp)\s*[:.\-]?\s*"
+        r"(\+?\d{1,3}[\s.-]?(?:\(\d{2,4}\)[\s.-]?)?\d[\d\s.-]{6,13}\d)",
         text,
+        re.I,
     )
+    if labeled:
+        phone = labeled.group(1).strip()
+    else:
+        separated = re.search(
+            r"(?<!\d)(\+?\d{1,3}[\s.-]?)?(\(\d{3}\)|\d{3})[\s.-]\d{3}[\s.-]?\d{4}(?!\d)",
+            text,
+        )
+        if separated:
+            phone = separated.group(0)
+        else:
+            bare = re.search(r"(?<!\d)(\+\d{1,3}[\s-]?)?\d{10,13}(?!\d)", text)
+            if bare:
+                phone = bare.group(0)
+
     linkedin = re.search(r"linkedin\.com/in/[\w-]+", text, re.I)
     return {
         "email": email.group(0) if email else None,
-        "phone": phone.group(0) if phone else None,
+        "phone": phone,
         "linkedin": linkedin.group(0) if linkedin else None,
     }
 
@@ -289,7 +361,7 @@ def calculate_experience_duration(exp_text):
 
 
 def count_action_verb_bullets(text):
-    # Uses the same bullet-detection heuristic as the rewrite/STAR features
+    # Uses the same bullet-detection heuristic as the rewrite feature
     # (extract_bullet_lines) instead of "any line under 30 words", which used
     # to sweep in job titles, dates, and headers as if they were bullets and
     # skewed the ratio. Defined further down in the file but resolved at
@@ -396,13 +468,10 @@ def _keyword_in_text(keyword, text_lower):
 
 
 def jd_match_score(resume_text, jd_text, resume_skills=None):
-    similarity = 0.0
-    model = get_st_model()
-    if model:
-        emb1 = model.encode(resume_text)
-        emb2 = model.encode(jd_text)
-        similarity = float(cos_sim(emb1, emb2)[0][0])
-    else:
+    # Model #1 - Sentence-BERT semantic resume <-> job description
+    # similarity, with a TF-IDF fallback if the model isn't available.
+    similarity = sbert_similarity(resume_text, jd_text)
+    if similarity is None:
         vectorizer = TfidfVectorizer(stop_words="english")
         try:
             tfidf = vectorizer.fit_transform([resume_text, jd_text])
@@ -450,6 +519,206 @@ def jd_match_score(resume_text, jd_text, resume_skills=None):
         "education_requirements": jd_segments["Education"][:300] if jd_segments and jd_segments["Education"] else "",
         "experience_requirements": jd_segments["Experience"][:300] if jd_segments and jd_segments["Experience"] else ""
     }
+
+
+# --------------------------------------------------------------------------
+# Target-role skill gap
+# --------------------------------------------------------------------------
+#
+# This is a lighter-weight sibling of jd_match_score() above: instead of
+# requiring the user to paste in a full job description, they just type a
+# role title (e.g. "Data Analyst"), and we compare the resume against a
+# curated list of skills that role typically expects. Useful when the user
+# knows what role they're targeting but doesn't have a specific job posting
+# in front of them yet.
+
+TARGET_ROLE_SKILLS = {
+    "data analyst": ["SQL", "Excel", "Python", "R", "Tableau", "Power BI",
+                      "Statistics", "Data Visualization", "A/B Testing", "Google Analytics"],
+    "data scientist": ["Python", "R", "SQL", "Machine Learning", "Statistics", "Pandas",
+                        "NumPy", "Scikit-learn", "TensorFlow", "PyTorch", "Data Visualization",
+                        "Deep Learning"],
+    "business analyst": ["SQL", "Excel", "Tableau", "Power BI", "Requirements Gathering",
+                          "Stakeholder Management", "Business Process", "Agile", "JIRA"],
+    "marketing analyst": ["Google Analytics", "Excel", "SQL", "A/B Testing", "SEO",
+                           "Data Visualization", "Power BI"],
+    "software engineer": ["Python", "Java", "C++", "JavaScript", "Git", "Data Structures",
+                           "Algorithms", "SQL", "REST API", "Docker", "Agile"],
+    "frontend developer": ["JavaScript", "TypeScript", "React", "HTML", "CSS", "Redux",
+                            "Webpack", "Responsive Design", "Git"],
+    "backend developer": ["Python", "Java", "Node.js", "SQL", "REST API", "Docker",
+                           "Kubernetes", "PostgreSQL", "MongoDB", "Redis", "Microservices"],
+    "full stack developer": ["JavaScript", "React", "Node.js", "HTML", "CSS", "SQL",
+                              "REST API", "Git", "Docker"],
+    "devops engineer": ["Docker", "Kubernetes", "Terraform", "Ansible", "Jenkins", "CI/CD",
+                         "AWS", "Azure", "GCP", "Linux", "GitHub Actions", "Grafana"],
+    "machine learning engineer": ["Python", "TensorFlow", "PyTorch", "Scikit-learn", "Pandas",
+                                  "NumPy", "SQL", "Docker", "Kubernetes", "Machine Learning",
+                                  "Deep Learning", "MLOps"],
+    "product manager": ["Stakeholder Management", "Agile", "Scrum", "Roadmapping",
+                         "Market Research", "Data Analysis", "JIRA", "Communication", "Leadership"],
+    "project manager": ["Agile", "Scrum", "JIRA", "Stakeholder Management", "Risk Management",
+                         "Budgeting", "Communication", "Leadership"],
+    "ux designer": ["Figma", "Sketch", "Wireframing", "Prototyping", "User Research",
+                     "Usability Testing", "Adobe XD"],
+    "ui designer": ["Figma", "Sketch", "Adobe XD", "Prototyping", "Design Systems", "Typography"],
+    "qa engineer": ["Selenium", "Manual Testing", "Automation Testing", "Test Cases", "JIRA",
+                     "SQL", "API Testing", "Cypress"],
+    "cloud engineer": ["AWS", "Azure", "GCP", "Terraform", "Kubernetes", "Docker", "Linux",
+                        "Networking"],
+    "cybersecurity analyst": ["Network Security", "SIEM", "Penetration Testing", "Firewalls",
+                              "Vulnerability Assessment", "Python", "Linux"],
+}
+
+# Common alternate phrasings that should resolve to one of the canonical
+# role keys above, so "ML Engineer", "Front-End Developer", "DevOps" etc.
+# all still hit.
+TARGET_ROLE_ALIASES = {
+    "data analytics": "data analyst",
+    "data analysis": "data analyst",
+    "business analytics": "business analyst",
+    "ml engineer": "machine learning engineer",
+    "ai engineer": "machine learning engineer",
+    "swe": "software engineer",
+    "sde": "software engineer",
+    "front end developer": "frontend developer",
+    "front-end developer": "frontend developer",
+    "frontend engineer": "frontend developer",
+    "back end developer": "backend developer",
+    "back-end developer": "backend developer",
+    "backend engineer": "backend developer",
+    "fullstack developer": "full stack developer",
+    "full-stack developer": "full stack developer",
+    "devops": "devops engineer",
+    "sre": "devops engineer",
+    "site reliability engineer": "devops engineer",
+    "pm": "product manager",
+    "ui/ux designer": "ux designer",
+    "ux/ui designer": "ux designer",
+    "qa": "qa engineer",
+    "qa tester": "qa engineer",
+    "test engineer": "qa engineer",
+    "sdet": "qa engineer",
+    "cloud architect": "cloud engineer",
+    "security analyst": "cybersecurity analyst",
+    "infosec analyst": "cybersecurity analyst",
+}
+
+
+def match_target_role(role_name):
+    """Resolve a free-typed role title to one of the canonical keys in
+    TARGET_ROLE_SKILLS, or None if nothing close enough is found."""
+    if not role_name or not role_name.strip():
+        return None
+    norm = re.sub(r"[^a-z0-9+#. ]", "", role_name.strip().lower())
+    norm = re.sub(r"\s+", " ", norm).strip()
+    norm = TARGET_ROLE_ALIASES.get(norm, norm)
+
+    if norm in TARGET_ROLE_SKILLS:
+        return norm
+
+    keys = list(TARGET_ROLE_SKILLS.keys())
+    close = difflib.get_close_matches(norm, keys, n=1, cutoff=0.8)
+    if close:
+        return close[0]
+
+    # Substring match, e.g. "senior data analyst" or "data analyst ii" should
+    # still resolve to "data analyst". Only match when the *entire* canonical
+    # key appears in the typed text (not the other way around) so a short,
+    # generic input like "engineer" or "analyst" can't accidentally swallow
+    # an unrelated role.
+    for key in keys:
+        if key in norm:
+            return key
+    return None
+
+
+def target_role_skill_gap(resume_text, resume_skills, role_name):
+    """Compare the resume against the expected skill set for a plainly typed
+    target role (e.g. "Data Analyst") and report matched/missing skills."""
+    canonical_role = match_target_role(role_name)
+    if not canonical_role:
+        return {
+            "role_input": role_name,
+            "recognized": False,
+            "matched_role": None,
+            "matched_skills": [],
+            "missing_skills": [],
+            "match_score": 0,
+        }
+
+    expected_skills = TARGET_ROLE_SKILLS[canonical_role]
+    resume_lower = resume_text.lower()
+    resume_skills_lower = {s.lower() for s in (resume_skills or set())}
+
+    matched, missing = [], []
+    for skill in expected_skills:
+        if skill.lower() in resume_skills_lower or _keyword_in_text(skill, resume_lower):
+            matched.append(skill)
+        else:
+            missing.append(skill)
+
+    match_score = round(len(matched) / len(expected_skills) * 100) if expected_skills else 0
+
+    return {
+        "role_input": role_name,
+        "recognized": True,
+        "matched_role": canonical_role.title(),
+        "matched_skills": matched,
+        "missing_skills": missing,
+        "match_score": match_score,
+    }
+
+
+def _role_fit_blurb(match_score, exp_level):
+    """Short, recruiter-style read on how ready the candidate looks for a
+    role at a given match score, colored slightly by experience level."""
+    if match_score >= 70:
+        base = "Strong fit — most of the core skills for this role are already on the resume."
+    elif match_score >= 45:
+        base = "Good potential — a handful of skill gaps to close before applying."
+    else:
+        base = "Possible stretch role — meaningful upskilling recommended first."
+    if exp_level == "Fresher" and match_score >= 45:
+        base += " Worth targeting for entry-level or junior openings."
+    return base
+
+
+def suggest_roles(text, resume_skills, exp_level=None, top_n=5, min_score=15):
+    """Recruiter-style pass: instead of the user telling us a target role
+    (see target_role_skill_gap above), this looks at everything already on
+    the resume and works out which roles it's actually the best fit for,
+    ranked by how much of each role's expected skill set the resume covers.
+    """
+    resume_lower = text.lower()
+    resume_skills_lower = {s.lower() for s in (resume_skills or set())}
+
+    scored = []
+    for role, expected_skills in TARGET_ROLE_SKILLS.items():
+        matched = [
+            s for s in expected_skills
+            if s.lower() in resume_skills_lower or _keyword_in_text(s, resume_lower)
+        ]
+        missing = [s for s in expected_skills if s not in matched]
+        match_score = round(len(matched) / len(expected_skills) * 100) if expected_skills else 0
+        scored.append({
+            "role": role.title(),
+            "match_score": match_score,
+            "matched_skills": matched,
+            "missing_skills": missing,
+            "blurb": _role_fit_blurb(match_score, exp_level),
+        })
+
+    scored.sort(key=lambda r: r["match_score"], reverse=True)
+    qualifying = [r for r in scored if r["match_score"] >= min_score]
+
+    # If nothing clears the bar (very sparse resume), still surface the
+    # single best-scoring role rather than an empty list, so there's always
+    # something actionable to show.
+    if not qualifying and scored:
+        qualifying = scored[:1]
+
+    return qualifying[:top_n]
 
 
 # --------------------------------------------------------------------------
@@ -513,7 +782,7 @@ def score_projects(project_text):
         "suggestions": suggestions if suggestions else ["Great project descriptions with solid technical depth and measurable impact."]
     }
 
-def score_resume(text, jd_text=None, ats_risk=None):
+def score_resume(text, jd_text=None, ats_risk=None, target_role=None):
     word_count = len(re.findall(r"\w+", text))
     sections = detect_sections(text)
     contact = extract_contact_info(text)
@@ -624,6 +893,16 @@ def score_resume(text, jd_text=None, ats_risk=None):
         overall = round(structure_score * w_struct_nj + content_score * w_content_nj + skills_score * w_skills_nj)
 
     result["overall_score"] = max(0, min(overall, 100))
+
+    # --- Component 5 (optional): target-role skill gap ---
+    if target_role and target_role.strip():
+        result["target_role_match"] = target_role_skill_gap(text, skills_found, target_role)
+    else:
+        result["target_role_match"] = None
+
+    # --- Recruiter-style role suggestions, based on the resume as-is ---
+    result["suggested_roles"] = suggest_roles(text, skills_found, exp_level=exp_level)
+
     result["suggestions"] = build_suggestions(result)
 
     # --- Section-wise score + Completeness score ---
@@ -632,8 +911,24 @@ def score_resume(text, jd_text=None, ats_risk=None):
         text, sections, contact, skills_found, quantified, total_bullets
     )
 
-    # --- STAR Method Analysis ---
-    result["star_analysis"] = analyze_star_method(text)
+    # --- Model 2 - spaCy: structured extraction of education, work
+    # experience, and certifications, plus a NER-based cross-check pass on
+    # skills. Returns None (and result["entities"] stays None) if spaCy or
+    # the en_core_web_sm model is not installed, so the rest of the report
+    # is unaffected either way.
+    entities = extract_entities_spacy(
+        text,
+        skill_vocab=ALL_SKILLS,
+        experience_text=chunks.get("experience"),
+        education_text=chunks.get("education"),
+    )
+    result["entities"] = entities
+    if entities and entities.get("ner_skills"):
+        # Union the NER pass into the reported skill list so skills spaCy
+        # catches (different wording/casing than the FlashText pass) show up
+        # too, without double counting.
+        merged = sorted(set(result["skills_found"]) | set(entities["ner_skills"]))
+        result["skills_found"] = merged
 
     return result
 
@@ -684,6 +979,28 @@ def build_suggestions(r):
             )
         if r["jd_match"]["similarity"] < 50:
             tips.append("Your resume's overall similarity to this job description is low — mirror its terminology where truthful.")
+
+    if r.get("target_role_match"):
+        trm = r["target_role_match"]
+        if trm["recognized"] and trm["missing_skills"]:
+            tips.append(
+                f"For a {trm['matched_role']} role, your resume is missing: "
+                + ", ".join(trm["missing_skills"][:8])
+                + ". Add the ones that genuinely apply to your experience."
+            )
+        elif not trm["recognized"] and trm["role_input"]:
+            tips.append(
+                f"'{trm['role_input']}' wasn't recognized as a target role — try a more common title "
+                "(e.g. 'Data Analyst', 'Software Engineer', 'Product Manager')."
+            )
+
+    if r.get("suggested_roles"):
+        top = r["suggested_roles"][0]
+        if top["match_score"] >= 45:
+            tips.append(
+                f"Based on your current skills, you look like a strong candidate for "
+                f"{top['role']} roles ({top['match_score']}% skill match) — worth applying."
+            )
 
     if not tips:
         tips.append("Great work — your resume covers the fundamentals well. Consider a final proofread and a tailored summary per application.")
@@ -803,12 +1120,10 @@ def section_wise_scores(text):
 
 def completeness_score(text, sections, contact, skills_found, quantified, total_bullets):
     has_github = bool(re.search(r"github\.com/[\w-]+", text, re.I))
-    has_portfolio = bool(re.search(r"(portfolio|\.me|\.dev|website)", text, re.I) and not contact["linkedin"])
-    
+
     has_certifications = bool(re.search(r"^\s*(certifications?|licenses?)\s*:?\s*$", text, re.I | re.M))
-    has_languages = bool(re.search(r"^\s*(languages?)\s*:?\s*$", text, re.I | re.M))
     has_achievements = bool(re.search(r"^\s*(achievements?|awards?|honors?|recognitions?)\s*:?\s*$", text, re.I | re.M))
-    
+
     checklist = [
         ("Summary", sections["summary"]),
         ("Skills", sections["skills"]),
@@ -817,11 +1132,9 @@ def completeness_score(text, sections, contact, skills_found, quantified, total_
         ("Education", sections["education"]),
         ("Certifications", has_certifications),
         ("Achievements", has_achievements),
-        ("Languages", has_languages),
         ("Contact Information", bool(contact["email"] or contact["phone"])),
         ("LinkedIn", bool(contact["linkedin"])),
         ("GitHub", has_github),
-        ("Portfolio", has_portfolio),
     ]
     passed = sum(1 for _, ok in checklist if ok)
     score = round(passed / len(checklist) * 100)
@@ -935,11 +1248,44 @@ def analyze_ats_risk(filepath, filename, text):
     else:
         level = "Low"
 
-    return {"risk_level": level, "issues": issues}
+    # Model 3 - XGBoost: a learned, non-linear ATS-parseability score that
+    # sits alongside the rule-based risk_level/issues above. The rule-based
+    # checks stay as-is for explainability; the ML score adds a single
+    # 0-100 number weighing the same structural signals the way a trained
+    # model does, including interactions a flat point system cannot express.
+    contact = extract_contact_info(text)
+    sections = detect_sections(text)
+    skills_found = extract_skills(text)
+    strong_bullets, total_bullets = count_action_verb_bullets(text)
+    quantified = count_quantified_bullets(text)
+    num_core_sections = sum(1 for k in ["experience", "education", "skills", "summary"] if sections.get(k))
+
+    features = build_ats_feature_vector(
+        word_count=len(re.findall(r"\w+", text)),
+        has_email=bool(contact["email"]),
+        has_phone=bool(contact["phone"]),
+        has_linkedin=bool(contact["linkedin"]),
+        num_core_sections=num_core_sections,
+        has_tables=has_tables,
+        has_images=has_images,
+        gap_line_ratio=(gap_lines / max(len(text.splitlines()), 1)),
+        has_unusual_bullets=bool(UNUSUAL_BULLET_CHARS.search(text)),
+        matched_standard_headers=matched_sections,
+        skills_count=len(skills_found),
+        bullet_count=total_bullets,
+        quantified_bullet_ratio=(quantified / max(total_bullets, 1)),
+    )
+    ml_score = predict_ats_score(features)
+
+    return {
+        "risk_level": level,
+        "issues": issues,
+        "ml_ats_score": ml_score,
+    }
 
 
 # --------------------------------------------------------------------------
-# Bullet point rewriting & STAR analysis
+# Bullet point rewriting
 # --------------------------------------------------------------------------
 
 def extract_bullet_lines(text):
@@ -983,50 +1329,21 @@ def suggest_verb(bullet):
     return DEFAULT_VERB
 
 
-def analyze_star_method(text):
-    chunks = split_sections(text)
-    bullet_source = "\n".join([chunks.get("experience", ""), chunks.get("projects", "")]).strip()
-    if not bullet_source:
-        bullet_source = text
-    
-    bullets = extract_bullet_lines(bullet_source)
-    star_analysis = []
-    
-    for bullet in bullets:
-        words = re.findall(r"[a-zA-Z']+", bullet)
-        if not words:
-            continue
-            
-        has_action = words[0].lower() in ACTION_VERBS
-        has_result = bool(re.search(r"\d", bullet)) or bool(re.search(r"\b(resulted in|led to|saving|improved|increased|decreased|reduced|achieved)\b", bullet, re.I))
-        has_context = len(words) > 10 and bool(re.search(r"\b(by|for|when|during|to|through|with|using|in)\b", bullet, re.I))
-        
-        score = sum([has_action, has_result, has_context])
-        star_analysis.append({
-            "text": bullet,
-            "has_action": has_action,
-            "has_result": has_result,
-            "has_context": has_context,
-            "score": score
-        })
-        
-    # Sort by score descending so best bullets are first, or we can just keep natural order.
-    # We'll keep natural order so it matches the resume flow.
-    return star_analysis
-
-
 def rule_based_bullet_rewrite(bullet):
     words = re.findall(r"[a-zA-Z']+", bullet)
     starts_weak = not words or words[0].lower() not in ACTION_VERBS
     has_number = bool(re.search(r"\d", bullet))
 
     core = WEAK_OPENERS_RE.sub("", bullet).strip()
-    if core:
-        core = core[0].lower() + core[1:]
 
     notes = []
     if starts_weak:
         verb = suggest_verb(bullet)
+        # Only lowercase the remainder when we're actually prepending a new
+        # leading verb — otherwise a bullet that already starts strong
+        # (e.g. "Built...") would get needlessly lowercased to "built...".
+        if core:
+            core = core[0].lower() + core[1:]
         core = f"{verb} {core}".strip()
         notes.append("Now leads with a strong action verb instead of a passive/weak phrase.")
     if not has_number:
@@ -1108,23 +1425,38 @@ BULLETS:
 # --------------------------------------------------------------------------
 
 def rule_based_project_enhancement(bullet):
-    notes = []
-    lower = bullet.lower()
-    
-    if not any(tech in lower for tech in ["using", "developed with", "built with", "technologies", "stack", "react", "python", "java", "node", "sql"]):
-        notes.append("Consider explicitly mentioning the technologies or tools used in this project.")
-        
+    words = re.findall(r"[a-zA-Z']+", bullet)
+    starts_weak = not words or words[0].lower() not in ACTION_VERBS
     has_number = bool(re.search(r"\d", bullet))
+    # Reuse the same skill vocabulary as the rest of the app instead of a
+    # small hard-coded keyword list, so tech-mention detection matches
+    # whatever's actually in SKILL_DB.
+    mentions_tech = bool(extract_skills(bullet)) or any(
+        kw in bullet.lower() for kw in ["using", "developed with", "built with", "technologies", "stack"]
+    )
+
+    core = WEAK_OPENERS_RE.sub("", bullet).strip()
+
+    notes = []
+    if starts_weak:
+        verb = suggest_verb(bullet)
+        if core:
+            core = core[0].lower() + core[1:]
+        core = f"{verb} {core}".strip()
+        notes.append("Now leads with a strong action verb instead of a passive/weak phrase.")
+    if not mentions_tech:
+        core = core.rstrip(". ") + ", built with [add your tech stack/tools here]"
+        notes.append("Explicitly name the technologies, frameworks, or tools used in this project.")
     if not has_number:
-        notes.append("Try to quantify the project's impact or scale (e.g., 'handled 1000+ users', 'reduced load time by 2s').")
-        
+        core = core.rstrip(". ") + " — add a measurable outcome (e.g. 'used by 500+ people', 'cut load time by 40%')."
+        notes.append("Quantify the project's impact or scale with a specific number, percentage, or dollar amount.")
     if not notes:
         notes.append("Good project description. Ensure it clearly states your specific contribution if it was a team project.")
-        
-    # Provide a placeholder suggestion since rule-based doesn't fully rewrite here
-    suggested = bullet.rstrip(". ") + " [Add metrics/technologies here]."
-        
-    return {"original": bullet, "suggested": suggested, "notes": notes, "ai_powered": False}
+
+    if not core.endswith("."):
+        core = core.rstrip(", ") + "."
+
+    return {"original": bullet, "suggested": core, "notes": notes, "ai_powered": False}
 
 def ai_enhance_project_bullets(bullets):
     api_key = os.environ.get("GROQ_API_KEY")

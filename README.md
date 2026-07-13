@@ -1,182 +1,171 @@
-# 🚀 SCANLINE — AI Resume Analyzer
+# SCANLINE — AI Resume Analyzer
 
-<p align="center">
-  <b>An intelligent Resume Analyzer that evaluates ATS compatibility, analyzes resume quality, matches resumes with job descriptions, and provides AI-powered improvement suggestions using Machine Learning and NLP.</b>
-</p>
+A resume analyzer with an HTML/CSS/JS frontend and a Python (Flask) backend.
+It scores a resume for ATS-friendliness, content quality, and skill coverage,
+and — if you paste in a job description — a keyword/similarity match score
+against that specific role.
 
----
+**No paid API required.** The scoring engine runs entirely locally using
+`scikit-learn` (TF-IDF + cosine similarity) and regex/rule-based NLP —
+there's nothing to sign up for and no API key needed to use the app.
 
-## ✨ Features
+Optionally, you can plug in a **free** [Groq](https://console.groq.com) API
+key to get an extra "AI reviewer notes" section written by an LLM
+(Llama 3.1 8B, on Groq's free tier — no credit card needed). This is
+entirely optional; everything else works without it.
 
-- 📄 Upload resumes in **PDF, DOCX, and TXT**
-- 🤖 AI-powered Resume Analysis
-- 📊 ATS Compatibility Score
-- 🎯 Job Description Matching
-- 🧠 Sentence-BERT Semantic Similarity
-- 🔍 Skill Extraction using FlashText & spaCy
-- 📈 Resume Completeness Analysis
-- 📑 Section-wise Resume Scoring
-- 🌡️ Resume Heatmap Visualization
-- 📊 Interactive Dashboard with Charts
-- ⭐ Candidate Level Detection
-- 💼 Resume Domain Detection
-- ⏳ Experience Detection
-- ✍️ Bullet Point Rewrite Suggestions
-- 🚀 Project Enhancement Suggestions
-- 📋 STAR Resume Analysis
-- 📄 Downloadable PDF Report
-- ⚡ Optional AI Feedback using Groq Llama 3
+## Project structure
 
----
+All files live together in one folder:
 
-## 🧠 AI & Machine Learning
-
-SCANLINE combines traditional NLP with Machine Learning models to deliver accurate resume insights.
-
-| Model | Purpose |
-|--------|----------|
-| Sentence-BERT | Semantic Resume ↔ JD Matching |
-| XGBoost | ATS Score Prediction |
-| spaCy | Entity & Skill Extraction |
-| TF-IDF + Cosine Similarity | Keyword Matching |
-| FlashText | Fast Skill Detection |
-| Rule-Based NLP | Resume Evaluation |
-
-> **Works completely offline** without any paid API. AI feedback is optional using a free Groq API key.
-
----
-
-## 🛠️ Tech Stack
-
-### Frontend
-- HTML5
-- CSS3
-- JavaScript
-- Chart.js
-
-### Backend
-- Python
-- Flask
-- Flask-CORS
-
-### Machine Learning & NLP
-- Scikit-Learn
-- Sentence Transformers
-- spaCy
-- XGBoost
-- FlashText
-- TF-IDF
-- Cosine Similarity
-
-### Utilities
-- PDFPlumber
-- python-docx
-- Joblib
-- Requests
-
----
-
-## 📂 Project Structure
-
-```text
+```
 resume-analyzer/
-│── app.py
-│── analyzer.py
-│── ml_models.py
-│── train_ats_model.py
-│── ats_model.joblib
-│── requirements.txt
-│── index.html
-│── style.css
-│── script.js
-└── README.md
+├── app.py               Flask server + API routes
+├── analyzer.py          Parsing, scoring, and suggestion logic
+├── ml_models.py         SBERT / spaCy / XGBoost model integrations
+├── train_ats_model.py   Offline script that trains ats_model.joblib
+├── ats_model.joblib     Pre-trained XGBoost ATS-score model
+├── requirements.txt
+├── index.html
+├── style.css
+└── script.js
 ```
 
----
+`app.py` serves `index.html`, `style.css`, and `script.js` directly, so a
+single Flask process runs the whole app — no separate frontend server needed.
 
-## ⚙️ Installation
+## Machine learning models used
+
+On top of the rule-based scoring engine, SCANLINE uses three real ML models
+(all in `ml_models.py`). Every one degrades gracefully to the rule-based
+fallback if its package or model file isn't installed, so the app still
+works end-to-end without any of them.
+
+| Model | Role | Where it's used |
+|---|---|---|
+| **Sentence-BERT** (`all-MiniLM-L6-v2`, via `sentence-transformers`) | Semantic resume ↔ job-description matching — catches meaning overlap ("led a team of engineers" vs. "managed engineering staff") that keyword/TF-IDF overlap misses. Falls back to TF-IDF cosine similarity if unavailable. | `jd_match_score()` → the JD similarity score and required/preferred keyword match |
+| **spaCy** (`en_core_web_sm`, NER + PhraseMatcher) | Structured extraction of **education** (degree / institution / year), **work experience** (title / organization / dates), and **certifications**, plus an NER-based cross-check pass on skills. | `score_resume()` → the "Extracted profile" card in the UI |
+| **XGBoost** | A learned, non-linear ATS-parseability score (0-100) that sits alongside the existing rule-based Low/Medium/High risk checklist. Trained on synthetic feature vectors labeled from the same structural heuristics the rule-based checker uses (tables, images, multi-column layout, missing headers, etc.), so it can weigh interactions between them (e.g. tables are much worse when headers are *also* non-standard) instead of flat point deductions. | `analyze_ats_risk()` → "ML-predicted ATS pass score" shown in the ATS risk card |
+
+Run `python3 train_ats_model.py` to retrain the XGBoost model (it writes
+`ats_model.joblib` next to it); the server only ever loads that file, it
+never trains anything at request time. See the comments above
+`_synthetic_ats_training_data` in `ml_models.py` for why synthetic labels
+are used (no public labeled ATS-outcome dataset exists) and what to change
+if you later get real labeled data.
+
+The `/api/health` endpoint reports which of the three models actually
+loaded in your environment, e.g.:
+
+```json
+{"ml_models": {"sbert_jd_matching": true, "spacy_entity_extraction": true, "xgboost_ats_score": true}}
+```
+
+## Setup
+
+From inside this folder:
 
 ```bash
-git clone https://github.com/yourusername/SCANLINE.git
-
-cd SCANLINE
-
-python -m venv venv
-
-# Windows
-venv\Scripts\activate
-
+python3 -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
----
+`requirements.txt` installs spaCy's small English model directly from its
+GitHub release wheel, so no separate `python -m spacy download` step is
+needed. `ats_model.joblib` (the pre-trained XGBoost model) already ships in
+this folder — no training step is required to run the app.
 
-## ▶️ Run the Project
+
+## Run
 
 ```bash
-python app.py
+python3 app.py
 ```
 
-Open your browser and visit:
+Then open **http://localhost:5000** in your browser.
 
-```
-http://localhost:5000
-```
+> Don't open `index.html` directly by double-clicking it — it needs to be
+> served by Flask so it can reach the `/api/analyze` endpoint. Always start
+> it with `python3 app.py` and visit the `localhost:5000` URL.
 
----
+### (Optional) Enable AI reviewer notes
 
-## 📊 Analysis Includes
+1. Create a free account at https://console.groq.com and generate an API key
+   (no credit card required).
+2. Set it as an environment variable before starting the server:
 
-- ATS Score
-- Resume Score
-- Resume Completeness
-- Skill Coverage
-- Resume Heatmap
-- Section-wise Analysis
-- Experience Detection
-- Candidate Level
-- Domain Prediction
-- JD Similarity Score
-- STAR Analysis
-- Missing Keywords
-- Resume Suggestions
-- AI Feedback (Optional)
+   ```bash
+   export GROQ_API_KEY="your-key-here"   # Windows: set GROQ_API_KEY=your-key-here
+   python3 app.py
+   ```
+3. Check the "Include AI-generated feedback" box in the UI before scanning.
 
----
+If no key is set, that checkbox is simply ignored and the app still returns
+a full local report.
 
-## 🚀 Future Improvements
+## How scoring works
 
-- Resume Ranking
-- Resume Comparison
-- AI Cover Letter Generator
-- Resume Version History
-- User Authentication
-- Recruiter Dashboard
+| Component | What it checks |
+|---|---|
+| **Structure score** | Contact info present, key sections found (Experience, Education, Skills, Summary), sensible resume length |
+| **Content score** | Ratio of bullet points starting with strong action verbs, use of quantified achievements (numbers/%), overused buzzwords |
+| **Skills score** | Coverage against a curated database of programming languages, frameworks, tools, and soft skills |
+| **JD match** (optional) | TF-IDF cosine similarity between resume and job description, plus matched/missing keyword lists |
 
----
+The overall score is a weighted blend of these components (weighted more
+heavily toward JD match when a job description is supplied).
 
-## 🤝 Contributing
+### Section-wise resume score
 
-Contributions are welcome!
+The resume is split into its Contact / Summary / Experience / Education /
+Skills / Projects zones (by locating standard section headers), and each
+zone gets its own 0-100 score — so you can see exactly which section is
+dragging the resume down instead of just one overall number.
 
-1. Fork the repository
-2. Create a new branch
-3. Commit your changes
-4. Open a Pull Request
+### Resume completeness score
 
+A simple checklist-style score (0-100%) answering "is everything here?" —
+email, phone, LinkedIn, each major section, enough listed skills, and at
+least one quantified achievement. This is deliberately separate from the
+quality-focused structure/content scores above.
 
----
+### ATS risk analysis
 
-## 👨‍💻 Author
+Flags formatting choices that commonly break Applicant Tracking System
+parsers: tables used for layout, embedded images/logos, likely multi-column
+layouts, non-standard bullet/icon glyphs, and missing standard section
+headers. Returns an overall Low/Medium/High risk level plus a tip for each
+issue found. This is a heuristic proxy — it can only see what a parser could
+extract, the same limitation a real ATS has.
 
-**Prayas Gupta**
+### Bullet point rewrite
 
-- 🎓 B.Tech Artificial Intelligence & Machine Learning
-- 💻 Aspiring AI Engineer
-- 🌟 Passionate about AI, Machine Learning & Full-Stack Development
+Finds the weakest bullet points in your Experience/Projects sections (ones
+that don't start with a strong action verb or don't include a quantified
+result) and suggests a rewrite for each. Works out of the box with a local
+rule-based rewriter; if a Groq API key is set **and** "Include AI-generated
+feedback" is checked, the rewrites are generated by the LLM instead for
+more natural phrasing.
 
----
+## Supported file types
 
-<p align="center">
-⭐ If you found this project helpful, don't forget to star the repository!
-</p>
+PDF, DOCX, and TXT — up to 5MB.
+
+## Troubleshooting
+
+- **"No resume file uploaded" / nothing happens when you click Run scan**:
+  make sure you're visiting `http://localhost:5000` (served by Flask), not
+  opening `index.html` as a local `file://` path.
+- **`pip install` fails on an old Python version**: this project targets
+  Python 3.9+. Check your version with `python3 --version`.
+- **Port already in use**: run with a different port,
+  `PORT=5050 python3 app.py`, then visit `http://localhost:5050`.
+
+## Notes
+
+- All parsing and scoring happens on your own server; nothing is sent
+  anywhere unless you enable the optional AI feedback feature.
+- The skills database and keyword lists are intentionally editable —
+  open `analyzer.py` and extend `SKILL_DB`, `ACTION_VERBS`, or
+  `WEAK_PHRASES` to tune it to your industry.

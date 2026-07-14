@@ -18,7 +18,7 @@ const downloadPdfBtn = document.getElementById("downloadPdfBtn");
 
 let selectedFile = null;
 
-// --- Dropzone interactions -------------------------------------------------
+// --- Dropzone ---
 
 dropzone.addEventListener("click", () => fileInput.click());
 dropzone.addEventListener("keydown", (e) => {
@@ -85,20 +85,18 @@ function hideError() {
   errorMsg.hidden = true;
 }
 
-// --- Analyze ----------------------------------------------------------------
+// --- Analyze ---
 
 analyzeBtn.addEventListener("click", async () => {
   if (!selectedFile) return;
   hideError();
   report.hidden = true;
   setScanning(true);
-
   const formData = new FormData();
   formData.append("resume", selectedFile);
   formData.append("job_description", jdInput.value.trim());
   formData.append("target_role", targetRoleInput.value.trim());
   formData.append("ai_feedback", aiToggle.checked ? "true" : "false");
-
   try {
     const res = await fetch(`${API_BASE}/api/analyze`, {
       method: "POST",
@@ -123,30 +121,25 @@ function setScanning(on) {
   scanBeam.classList.toggle("scanning", on);
 }
 
-// --- Rendering ----------------------------------------------------------------
+// --- Rendering ---
 
 function renderReport(data) {
   report.hidden = false;
-
   animateGauge(data.overall_score);
   renderGrade(data.overall_score);
-
   const levelBadge = document.getElementById("candidateLevelBadge");
   if (levelBadge && data.candidate_level) {
     levelBadge.textContent = data.candidate_level + " Profile";
   }
-
   const domainBadge = document.getElementById("domainBadge");
   if (domainBadge && data.domain && data.domain.domain) {
     domainBadge.textContent = data.domain.domain;
   }
-
   const experienceBadge = document.getElementById("experienceBadge");
   if (experienceBadge && data.experience_duration) {
     const yrs = data.experience_duration.years;
     experienceBadge.textContent = yrs > 0 ? yrs + " YOE" : "No Exp Detected";
   }
-
   const subRow = document.getElementById("subscoreRow");
   subRow.innerHTML = "";
   const subs = [
@@ -165,7 +158,6 @@ function renderReport(data) {
       setTimeout(() => countUpTo(valueEl, val / 10, "/10"), i * 60);
     }
   });
-
   renderSectionScores(data.section_scores);
   renderHeatmap(data.section_scores);
   renderCompleteness(data.completeness);
@@ -175,7 +167,6 @@ function renderReport(data) {
   renderProjectEnhancements(data.project_enhancements);
   renderProjectQuality(data);
   renderDashboard(data);
-
   const skillChips = document.getElementById("skillChips");
   skillChips.innerHTML = "";
   if (data.skills_found.length === 0) {
@@ -188,11 +179,9 @@ function renderReport(data) {
       skillChips.appendChild(span);
     });
   }
-
   renderJDMatch(data);
   renderTargetRoleMatch(data);
   renderSuggestedRoles(data);
-
   const suggList = document.getElementById("suggestionsList");
   suggList.innerHTML = "";
   data.suggestions.forEach((s) => {
@@ -200,7 +189,6 @@ function renderReport(data) {
     li.textContent = s;
     suggList.appendChild(li);
   });
-
   const aiCard = document.getElementById("aiCard");
   if (data.ai_feedback) {
     aiCard.hidden = false;
@@ -208,26 +196,21 @@ function renderReport(data) {
   } else {
     aiCard.hidden = true;
   }
-
   initScrollReveal();
   report.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-// --- Scroll-reveal animation ------------------------------------------------
-// Fades/slides each visible card up into place as it enters the viewport,
-// with a light stagger so the report doesn't just pop in all at once.
+// --- Scroll-reveal animation ---
 let scrollRevealObserver = null;
 
 function initScrollReveal() {
   const targets = Array.from(document.querySelectorAll("#report .card, #report .subscore"))
     .filter((el) => !el.hidden && el.offsetParent !== null);
-
   targets.forEach((el, i) => {
     el.classList.remove("in-view");
     el.classList.add("reveal");
     el.style.transitionDelay = `${Math.min(i * 40, 400)}ms`;
   });
-
   if (scrollRevealObserver) scrollRevealObserver.disconnect();
   scrollRevealObserver = new IntersectionObserver(
     (entries) => {
@@ -236,16 +219,13 @@ function initScrollReveal() {
           const el = entry.target;
           el.classList.add("in-view");
           scrollRevealObserver.unobserve(el);
-          // The inline transition-delay was only needed for the initial
-          // stagger; clear it afterwards so hover transitions on this card
-          // stay snappy instead of inheriting that same delay forever.
+          // Clear the stagger delay after it plays so later hover transitions aren't delayed too.
           setTimeout(() => { el.style.transitionDelay = ""; }, 1000);
         }
       });
     },
     { threshold: 0.1, rootMargin: "0px 0px -40px 0px" }
   );
-
   targets.forEach((el) => scrollRevealObserver.observe(el));
 }
 
@@ -296,9 +276,9 @@ function scoreColor(score) {
   return "#4FBE82"; // green
 }
 
-// --- Section-wise score ------------------------------------------------------
+// --- Section-wise score ---
 
-// --- Overall letter grade ----------------------------------------------------
+// --- Overall letter grade ---
 
 function scoreToGrade(score) {
   if (score >= 97) return "A+";
@@ -324,14 +304,11 @@ function renderGrade(score) {
   stampVerdict(grade);
 }
 
-// Drives the signature ink-stamp: re-plays the thud animation on every
-// scan and picks a verdict + color consistent with the letter grade,
-// echoing the "reviewer marks the file" framing of the product.
+// Picks the stamp verdict/color for the grade and replays its animation.
 function stampVerdict(grade) {
   const stamp = document.getElementById("gradeStamp");
   const text = document.getElementById("stampText");
   if (!stamp || !text) return;
-
   const letter = grade[0];
   let verdict = "REVIEW";
   let color = "#D9A238"; // amber
@@ -339,7 +316,6 @@ function stampVerdict(grade) {
   else if (letter === "B") { verdict = "STRONG"; color = "#3E9C8C"; }
   else if (letter === "C") { verdict = "REVIEW"; color = "#D9A238"; }
   else { verdict = "FLAGGED"; color = "#E2584F"; }
-
   text.textContent = verdict;
   stamp.style.setProperty("--stamp-color", color);
   stamp.classList.remove("show");
@@ -352,11 +328,9 @@ function renderSectionScores(sectionScores) {
   const wrap = document.getElementById("sectionBars");
   wrap.innerHTML = "";
   if (!sectionScores) return;
-
   Object.values(sectionScores).forEach((s) => {
     const row = document.createElement("div");
     row.className = "section-bar-row" + (s.present ? "" : " not-present");
-
     const label = document.createElement("div");
     label.className = "section-bar-label";
     let subtext = "";
@@ -364,7 +338,6 @@ function renderSectionScores(sectionScores) {
     else if (typeof s.count === "number") subtext = `${s.count} skills matched`;
     else if (typeof s.bullets_detected === "number") subtext = `${s.bullets_detected} bullets detected`;
     label.innerHTML = `${s.label}${subtext ? `<span class="sub">${subtext}</span>` : ""}`;
-
     const track = document.createElement("div");
     track.className = "section-bar-track";
     const fill = document.createElement("div");
@@ -373,59 +346,48 @@ function renderSectionScores(sectionScores) {
     fill.style.width = "0%";
     fill.style.background = s.present ? scoreColor(val) : "var(--line)";
     track.appendChild(fill);
-
     const valueEl = document.createElement("div");
     valueEl.className = "section-bar-value";
     valueEl.textContent = s.score == null ? "—" : `${(s.score / 10).toFixed(1)}/10`;
-
     row.appendChild(label);
     row.appendChild(track);
     row.appendChild(valueEl);
     wrap.appendChild(row);
-
     requestAnimationFrame(() => { fill.style.width = `${val}%`; });
   });
 }
-// --- Resume Heatmap ----------------------------------------------------------
+// --- Resume heatmap ---
 
 function renderHeatmap(sectionScores) {
   const container = document.getElementById("heatmapContainer");
   container.innerHTML = "";
   if (!sectionScores) return;
-
   Object.values(sectionScores).forEach(s => {
     if (!s.present) return;
     const block = document.createElement("div");
     block.className = "heatmap-block";
     block.style.backgroundColor = scoreColor(s.score || 0);
-    
     let weight = 1;
     if (s.label.toLowerCase().includes("experience")) weight = 3;
     if (s.label.toLowerCase().includes("education")) weight = 1.5;
     if (s.label.toLowerCase().includes("skills")) weight = 2;
     if (s.label.toLowerCase().includes("projects")) weight = 2;
-    
     block.style.flexGrow = weight;
-    
-    // Add text color contrast if needed, scoreColor returns dark/light backgrounds
-    // Coral/Green/Amber are all relatively dark, so white text usually works best
+
     block.style.color = "#fff";
-    
     const displayScore = s.score == null ? "—" : (s.score / 10).toFixed(1);
     block.innerHTML = `<span class="heatmap-label">${escapeHtml(s.label)}</span><span class="heatmap-score">${displayScore}/10</span>`;
     container.appendChild(block);
   });
 }
-// --- Completeness score --------------------------------------------------------
+// --- Completeness score ---
 
 function renderCompleteness(completeness) {
   if (!completeness) return;
   document.getElementById("completenessPct").textContent = `${(completeness.score / 10).toFixed(1)}/10`;
-
   const fill = document.getElementById("completenessBarFill");
   fill.style.width = "0%";
   requestAnimationFrame(() => { fill.style.width = `${completeness.score}%`; });
-
   const list = document.getElementById("completenessChecklist");
   list.innerHTML = "";
   completeness.checklist.forEach(([label, passed]) => {
@@ -436,14 +398,13 @@ function renderCompleteness(completeness) {
   });
 }
 
-// --- ATS risk analysis --------------------------------------------------------
+// --- ATS risk analysis ---
 
 function renderAtsRisk(atsRisk) {
   if (!atsRisk) return;
   const badge = document.getElementById("riskBadge");
   badge.textContent = `${atsRisk.risk_level} risk`;
   badge.className = `risk-badge ${atsRisk.risk_level.toLowerCase()}`;
-
   const mlLine = document.getElementById("atsMlScoreLine");
   const mlValue = document.getElementById("atsMlScoreValue");
   if (atsRisk.ml_ats_score !== null && atsRisk.ml_ats_score !== undefined) {
@@ -452,7 +413,6 @@ function renderAtsRisk(atsRisk) {
   } else if (mlLine) {
     mlLine.hidden = true;
   }
-
   const list = document.getElementById("atsIssues");
   list.innerHTML = "";
   if (!atsRisk.issues.length) {
@@ -470,7 +430,7 @@ function renderAtsRisk(atsRisk) {
   });
 }
 
-// --- Extracted profile (spaCy: education / experience / certifications) ------
+// --- Extracted profile (spaCy) ---
 
 function renderEntityProfile(entities) {
   const card = document.getElementById("profileCard");
@@ -478,7 +438,6 @@ function renderEntityProfile(entities) {
     card.hidden = true;
     return;
   }
-
   const hasAny = (entities.education && entities.education.length)
     || (entities.experience && entities.experience.length)
     || (entities.certifications && entities.certifications.length);
@@ -487,7 +446,6 @@ function renderEntityProfile(entities) {
     return;
   }
   card.hidden = false;
-
   const eduList = document.getElementById("entityEducationList");
   eduList.innerHTML = "";
   if (!entities.education.length) {
@@ -504,7 +462,6 @@ function renderEntityProfile(entities) {
       eduList.appendChild(li);
     });
   }
-
   const expList = document.getElementById("entityExperienceList");
   expList.innerHTML = "";
   if (!entities.experience.length) {
@@ -521,7 +478,6 @@ function renderEntityProfile(entities) {
       expList.appendChild(li);
     });
   }
-
   const certChips = document.getElementById("entityCertChips");
   certChips.innerHTML = "";
   if (!entities.certifications.length) {
@@ -536,14 +492,13 @@ function renderEntityProfile(entities) {
   }
 }
 
-// --- Bullet point rewrites --------------------------------------------------------
+// --- Bullet point rewrites ---
 
 function renderBulletRewrites(bulletRewrites) {
   const card = document.getElementById("bulletCard");
   const list = document.getElementById("bulletList");
   const subtitle = document.getElementById("bulletSubtitle");
   list.innerHTML = "";
-
   if (!bulletRewrites || bulletRewrites.length === 0) {
     card.hidden = true;
     return;
@@ -553,7 +508,6 @@ function renderBulletRewrites(bulletRewrites) {
   subtitle.textContent = aiUsed
     ? "Rewrites for your weakest bullet points, generated by the AI reviewer."
     : "Rewrites for your weakest bullet points, using strong action verbs and quantified impact.";
-
   bulletRewrites.forEach((b) => {
     const item = document.createElement("div");
     item.className = "bullet-item";
@@ -566,8 +520,7 @@ function renderBulletRewrites(bulletRewrites) {
   });
 }
 
-// Animates a "0.0/10"-style value counting up from zero — used for
-// subscore tiles so the report reads as measured rather than static.
+// Animates a subscore value counting up from zero, e.g. "0.0/10".
 function countUpTo(el, targetValue, suffix, duration = 700) {
   const start = performance.now();
   function tick(now) {
@@ -590,20 +543,17 @@ function animateGauge(score) {
   const circumference = 377; // 2 * PI * 60, matches stroke-dasharray in CSS
   const fill = document.getElementById("gaugeFill");
   const offset = circumference - (score / 100) * circumference;
-
   let color = "#4FBE82"; // green
   if (score < 50) color = "#E2584F"; // coral
   else if (score < 75) color = "#D9A238"; // amber
   fill.style.stroke = color;
 
-  // reset then animate
   fill.style.transition = "none";
   fill.style.strokeDashoffset = circumference;
   requestAnimationFrame(() => {
     fill.style.transition = "stroke-dashoffset 1s cubic-bezier(0.65,0,0.35,1), stroke 0.4s ease";
     fill.style.strokeDashoffset = offset;
   });
-
   let current = 0;
   const target = score / 10;
   const duration = 800;
@@ -619,7 +569,7 @@ function animateGauge(score) {
   requestAnimationFrame(tick);
 }
 
-// --- Dashboard & PDF Export & Enhancements --------------------------------------
+// --- Dashboard & PDF export ---
 
 if (downloadPdfBtn) {
   downloadPdfBtn.addEventListener("click", () => {
@@ -638,7 +588,7 @@ if (downloadPdfBtn) {
 let radarChartInstance = null;
 let barChartInstance = null;
 
-// Shared modern tooltip styling for all charts — rounded, padded, glass-y.
+// Shared tooltip styling for all charts.
 const CHART_TOOLTIP_BASE = {
   backgroundColor: 'rgba(18, 19, 15, 0.92)',
   titleColor: '#F2ECDD',
@@ -655,21 +605,17 @@ const CHART_TOOLTIP_BASE = {
 
 function renderDashboard(data) {
   document.getElementById("dashboardGrid").style.display = "grid";
-
   const ctxRadar = document.getElementById("radarChart").getContext("2d");
   if (radarChartInstance) radarChartInstance.destroy();
-
   const labelsRadar = ["Structure", "Content", "Skills"];
   const dataRadar = [data.structure_score, data.content_score, data.skills_score];
   if (data.jd_match) {
     labelsRadar.push("JD Match");
     dataRadar.push(data.jd_match.similarity);
   }
-
   const radarFill = ctxRadar.createLinearGradient(0, 0, 0, 260);
   radarFill.addColorStop(0, 'rgba(204, 149, 68, 0.38)');
   radarFill.addColorStop(1, 'rgba(62, 156, 140, 0.08)');
-
   radarChartInstance = new Chart(ctxRadar, {
     type: 'radar',
     data: {
@@ -709,24 +655,20 @@ function renderDashboard(data) {
       }
     }
   });
-
   const ctxBar = document.getElementById("barChart").getContext("2d");
   if (barChartInstance) barChartInstance.destroy();
-
   const labelsBar = [];
   const dataBar = [];
   Object.values(data.section_scores).forEach(s => {
     labelsBar.push(s.label);
     dataBar.push((s.score || 0) / 10);
   });
-
   const barFill = ctxBar.createLinearGradient(0, 0, 0, 260);
   barFill.addColorStop(0, '#3E9C8C');
   barFill.addColorStop(1, '#CC9544');
   const barHoverFill = ctxBar.createLinearGradient(0, 0, 0, 260);
   barHoverFill.addColorStop(0, '#E3B563');
   barHoverFill.addColorStop(1, '#B98A3E');
-
   barChartInstance = new Chart(ctxBar, {
     type: 'bar',
     data: {
@@ -770,10 +712,8 @@ let skillGapChartInstance = null;
 function renderSkillGap(matchedList, missingList) {
   const ctx = document.getElementById("skillGapChart").getContext("2d");
   if (skillGapChartInstance) skillGapChartInstance.destroy();
-
   const matchedCount = matchedList ? matchedList.length : 0;
   const missingCount = missingList ? missingList.length : 0;
-
   const matchedFill = ctx.createLinearGradient(0, 0, 0, 200);
   matchedFill.addColorStop(0, '#6ED4A3');
   matchedFill.addColorStop(1, '#3E9C8C');
@@ -781,8 +721,7 @@ function renderSkillGap(matchedList, missingList) {
   missingFill.addColorStop(0, '#EB8079');
   missingFill.addColorStop(1, '#E2584F');
 
-  // Center-text plugin: shows the match % in the doughnut hole so the chart
-  // reads at a glance instead of requiring the legend to be parsed first.
+  // Shows the match % in the doughnut hole.
   const centerTextPlugin = {
     id: 'centerText',
     afterDraw(chart) {
@@ -804,7 +743,6 @@ function renderSkillGap(matchedList, missingList) {
       ctx.restore();
     }
   };
-
   skillGapChartInstance = new Chart(ctx, {
     type: 'doughnut',
     data: {
@@ -840,7 +778,6 @@ function renderProjectEnhancements(projectEnhancements) {
   const list = document.getElementById("projectList");
   const subtitle = document.getElementById("projectSubtitle");
   list.innerHTML = "";
-
   if (!projectEnhancements || projectEnhancements.length === 0) {
     card.hidden = true;
     return;
@@ -850,7 +787,6 @@ function renderProjectEnhancements(projectEnhancements) {
   subtitle.textContent = aiUsed
     ? "Enhancements for your project descriptions, generated by the AI reviewer."
     : "Enhancements for your project descriptions, focusing on metrics and technologies.";
-
   projectEnhancements.forEach((b) => {
     const item = document.createElement("div");
     item.className = "bullet-item";
@@ -870,10 +806,8 @@ function renderProjectQuality(data) {
     return;
   }
   c.hidden = false;
-
   const r = document.getElementById("projectSubscoreRow");
   r.innerHTML = "";
-
   const pq = data.project_quality;
   const subs = [
     { label: "Overall", score: pq.score },
@@ -882,7 +816,6 @@ function renderProjectQuality(data) {
     { label: "Impact", score: pq.metrics.impact_score },
     { label: "Action Verbs", score: pq.metrics.action_verbs_score }
   ];
-
   subs.forEach((s, i) => {
     const div = document.createElement("div");
     div.className = "subscore";
@@ -893,7 +826,6 @@ function renderProjectQuality(data) {
       setTimeout(() => countUpTo(valueEl, s.score / 10, "/10"), i * 60);
     }
   });
-
   const sl = document.getElementById("projectSuggestionsList");
   sl.innerHTML = "";
   pq.suggestions.forEach(sug => {
@@ -907,22 +839,18 @@ function renderSuggestedRoles(data) {
   const c = document.getElementById("roleSuggestionsCard");
   const list = document.getElementById("roleSuggestionsList");
   const roles = data.suggested_roles;
-
   if (!roles || roles.length === 0) {
     c.hidden = true;
     return;
   }
   c.hidden = false;
   list.innerHTML = "";
-
   roles.forEach((r) => {
     const item = document.createElement("div");
     item.className = "role-suggestion";
-
     const missingText = r.missing_skills && r.missing_skills.length
       ? `<span class="role-suggestion-missing"><strong>To strengthen this fit:</strong> ${escapeHtml(r.missing_skills.slice(0, 5).join(", "))}</span>`
       : `<span class="role-suggestion-missing">No notable gaps — you're covered on the essentials.</span>`;
-
     item.innerHTML = `
       <div class="role-suggestion-head">
         <span class="role-suggestion-name">${escapeHtml(r.role)}</span>
@@ -935,7 +863,6 @@ function renderSuggestedRoles(data) {
       ${missingText}
     `;
     list.appendChild(item);
-
     requestAnimationFrame(() => {
       item.querySelector(".role-suggestion-bar-fill").style.width = `${r.match_score}%`;
     });
@@ -950,22 +877,18 @@ function renderTargetRoleMatch(data) {
     return;
   }
   c.hidden = false;
-
   const subtitle = document.getElementById("targetRoleSubtitle");
   const matchedWrap = document.getElementById("targetRoleMatchedChips");
   const missingWrap = document.getElementById("targetRoleMissingChips");
   matchedWrap.innerHTML = "";
   missingWrap.innerHTML = "";
-
   if (!trm.recognized) {
     subtitle.textContent = `"${trm.role_input}" wasn't recognized — try a more common title (e.g. "Data Analyst", "Software Engineer", "Product Manager").`;
     matchedWrap.innerHTML = "";
     missingWrap.innerHTML = "";
     return;
   }
-
   subtitle.textContent = `Matched against typical "${trm.matched_role}" skills — ${trm.match_score}% coverage.`;
-
   if (trm.matched_skills.length === 0) {
     matchedWrap.innerHTML = `<span class="dz-sub">None yet.</span>`;
   } else {
@@ -976,7 +899,6 @@ function renderTargetRoleMatch(data) {
       matchedWrap.appendChild(span);
     });
   }
-
   if (trm.missing_skills.length === 0) {
     missingWrap.innerHTML = `<span class="dz-sub">Nothing missing — great coverage!</span>`;
   } else {
@@ -996,13 +918,10 @@ function renderJDMatch(data) {
     return;
   }
   c.hidden = false;
-
   const jd = data.jd_match;
   document.getElementById("jdSimilarity").textContent = (jd.similarity / 10).toFixed(1) + "/10";
-
   renderDensityChips("reqMatchedChips", jd.required_matched || [], jd.keyword_density, true);
   renderDensityChips("reqMissingChips", jd.required_missing || [], jd.keyword_density, false);
-  
   const prefWrap = document.getElementById("preferredSkillsWrap");
   if ((jd.preferred_matched && jd.preferred_matched.length > 0) || (jd.preferred_missing && jd.preferred_missing.length > 0)) {
       prefWrap.hidden = false;
@@ -1011,7 +930,6 @@ function renderJDMatch(data) {
   } else {
       prefWrap.hidden = true;
   }
-  
   const reqsSection = document.getElementById("jdReqsSection");
   if (jd.education_requirements || jd.experience_requirements) {
       reqsSection.hidden = false;
@@ -1020,7 +938,6 @@ function renderJDMatch(data) {
   } else {
       reqsSection.hidden = true;
   }
-
   const allMatched = (jd.required_matched || []).concat(jd.preferred_matched || []);
   const allMissing = (jd.required_missing || []).concat(jd.preferred_missing || []);
   renderSkillGap(allMatched, allMissing);

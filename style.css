@@ -1,10 +1,4 @@
-/* ---------------------------------------------------------------
-   Tokens — "Ferro Dossier": a warm near-black case-file base with
-   a burnished brass primary and a deep verdigris-teal secondary —
-   the palette of an inspected document, not a generic AI aurora.
-   Ink is warm parchment rather than cool blue-white, reinforcing
-   the "your resume, under the scanner" premise.
---------------------------------------------------------------- */
+/* Design tokens — warm near-black base, brass primary, teal secondary */
 :root {
   --bg-dark: #0B0D0B;             /* warm near-black, coffee undertone */
   --bg-dark-2: #12140F;
@@ -67,10 +61,7 @@ html, body {
   * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
 
-/* ---------------------------------------------------------------
-   Aurora background — soft drifting gradient blobs behind everything.
-   Pure CSS, GPU-friendly (transform/opacity only).
---------------------------------------------------------------- */
+/* Aurora background — drifting gradient blobs, CSS-only */
 .aurora-bg {
   position: fixed;
   inset: 0;
@@ -130,8 +121,7 @@ html, body {
   opacity: 0.5;
 }
 
-/* fine paper-grain texture — reinforces "physical document under a
-   scanner" rather than a flat digital gradient; pure CSS, no assets */
+/* Fine paper-grain texture overlay, pure CSS (no image assets). */
 .grain-overlay {
   position: fixed;
   inset: 0;
@@ -142,7 +132,7 @@ html, body {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-/* Custom scrollbar for a more premium feel */
+/* Custom scrollbar */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
@@ -153,10 +143,7 @@ html, body {
 ::-webkit-scrollbar-thumb:hover { background: var(--accent-2); }
 * { scrollbar-color: var(--accent) transparent; scrollbar-width: thin; }
 
-/* ---------------------------------------------------------------
-   Scroll-reveal utility — elements start slightly lower + faded,
-   JS toggles .in-view (IntersectionObserver) once they enter view.
---------------------------------------------------------------- */
+/* Scroll-reveal utility — JS toggles .in-view via IntersectionObserver */
 .reveal {
   opacity: 0;
   transform: translateY(18px);
@@ -168,10 +155,7 @@ html, body {
 }
 
 
-
-/* ---------------------------------------------------------------
-   Topbar
---------------------------------------------------------------- */
+/* Topbar */
 .topbar {
   border-bottom: 1px solid var(--line);
   padding: 22px 0;
@@ -220,9 +204,7 @@ html, body {
   margin: 0;
 }
 
-/* ---------------------------------------------------------------
-   Ticket label
---------------------------------------------------------------- */
+/* Ticket label */
 .ticket-label {
   font-family: var(--font-mono);
   font-size: 12px;
@@ -245,9 +227,7 @@ html, body {
 }
 .ticket-label em { font-style: normal; opacity: 0.7; }
 
-/* ---------------------------------------------------------------
-   Input deck
---------------------------------------------------------------- */
+/* Input deck */
 .deck {
   display: grid;
   grid-template-columns: 1.1fr 1fr;
@@ -466,9 +446,7 @@ textarea#jdInput:focus {
   font-size: 13px;
 }
 
-/* ---------------------------------------------------------------
-   Report
---------------------------------------------------------------- */
+/* Report */
 .report {
   border-top: none;
   position: relative;
@@ -507,12 +485,7 @@ textarea#jdInput:focus {
   -webkit-text-fill-color: transparent;
 }
 
-/* ---------------------------------------------------------------
-   Signature element — the case-file stamp. Thuds onto the report
-   the moment a scan resolves, echoing the "run it through the
-   scanner before they do" premise: this is the verdict, rendered
-   the way a reviewer would mark a physical file.
---------------------------------------------------------------- */
+/* Case-file stamp — animates in once a scan resolves */
 .stamp {
   --stamp-color: var(--green);
   position: absolute;
@@ -581,7 +554,6 @@ textarea#jdInput:focus {
 }
 .gauge-fill {
   fill: none;
-  stroke: url(#gradientStroke); /* We will need an SVG def for this if we want it perfect, but let's use accent */
   stroke: var(--accent);
   stroke-width: 10;
   stroke-linecap: round;
@@ -843,9 +815,7 @@ textarea#jdInput:focus {
   font-size: 14.5px;
 }
 
-/* ---------------------------------------------------------------
-   Section-wise score bars
---------------------------------------------------------------- */
+/* Section-wise score bars */
 .section-bars {
   display: flex;
   flex-direction: column;
@@ -879,7 +849,7 @@ textarea#jdInput:focus {
   height: 100%;
   border-radius: 8px;
   transition: width 1s cubic-bezier(0.65, 0, 0.35, 1);
-  box-shadow: 0 0 10px currentColor; /* uses the inline color */
+  box-shadow: 0 0 10px currentColor;
 }
 .section-bar-value {
   font-family: var(--font-mono);
@@ -892,9 +862,7 @@ textarea#jdInput:focus {
   color: var(--ink-soft);
 }
 
-/* ---------------------------------------------------------------
-   Completeness score
---------------------------------------------------------------- */
+/* Completeness score */
 .completeness-header {
   display: flex;
   align-items: baseline;
@@ -926,9 +894,7 @@ textarea#jdInput:focus {
   box-shadow: 0 0 15px rgba(240, 196, 110, 0.45);
 }
 
-/* ---------------------------------------------------------------
-   ATS risk analysis
---------------------------------------------------------------- */
+/* ATS risk analysis */
 .ats-header {
   display: flex;
   align-items: center;
@@ -993,9 +959,7 @@ textarea#jdInput:focus {
   margin: 10px 0 0;
 }
 
-/* ---------------------------------------------------------------
-   Bullet point rewrites
---------------------------------------------------------------- */
+/* Bullet point rewrites */
 .card-subtitle {
   font-size: 13px;
   color: var(--ink-soft);
@@ -1057,9 +1021,7 @@ textarea#jdInput:focus {
   vertical-align: middle;
 }
 
-/* ---------------------------------------------------------------
-   Suggested Roles
---------------------------------------------------------------- */
+/* Suggested roles */
 .role-suggestions {
   display: flex;
   flex-direction: column;
@@ -1123,9 +1085,7 @@ textarea#jdInput:focus {
   color: var(--ink);
 }
 
-/* ---------------------------------------------------------------
-   Resume Heatmap
---------------------------------------------------------------- */
+/* Resume heatmap */
 .heatmap-container {
   display: flex;
   flex-wrap: wrap;
@@ -1167,9 +1127,7 @@ textarea#jdInput:focus {
   text-shadow: 0 2px 10px rgba(0,0,0,0.3);
 }
 
-/* ---------------------------------------------------------------
-   Footer
---------------------------------------------------------------- */
+/* Footer */
 .footer {
   border-top: 1px solid var(--line);
   padding: 20px 0 40px;
@@ -1181,7 +1139,7 @@ textarea#jdInput:focus {
   margin: 0;
 }
 
-/* --- Analytics Dashboard & PDF Export --- */
+/* Dashboard & PDF export */
 
 .pdf-btn {
   margin-top: 1rem;

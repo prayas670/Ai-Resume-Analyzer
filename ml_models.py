@@ -1,22 +1,13 @@
 """
-ml_models.py
-============
+Home for the three ML models used alongside the rule-based engine in
+analyzer.py:
 
-Central home for the three "real" ML models used by SCANLINE, on top of the
-rule-based engine in analyzer.py:
-
-  1. Sentence-BERT (SBERT)  -> resume <-> job description semantic matching
+  1. Sentence-BERT (SBERT)       -> resume <-> job description matching
   2. spaCy (NER + PhraseMatcher) -> structured extraction of skills,
      education, work experience, and certifications
-  3. XGBoost               -> learned ATS-parseability score (0-100),
-     trained on top of the same structural signals the rule-based ATS
-     checker looks at, so it can weigh/combine them non-linearly instead of
-     a hand-tuned point system.
-
-Every model degrades gracefully: if a package or model file isn't
-installed, the corresponding function returns None / an empty result and
-analyzer.py falls back to its existing rule-based behaviour. Nothing here
-is required for the app to run.
+  3. XGBoost                    -> learned ATS-parseability score (0-100)
+Every model degrades gracefully to None/empty if its package or model file
+isn't installed, and analyzer.py falls back to rule-based behaviour.
 """
 
 import os
@@ -28,9 +19,7 @@ import numpy as np
 MODEL_DIR = os.path.dirname(os.path.abspath(__file__))
 ATS_MODEL_PATH = os.path.join(MODEL_DIR, "ats_model.joblib")
 
-# --------------------------------------------------------------------------
 # 1. Sentence-BERT — resume <-> job description semantic similarity
-# --------------------------------------------------------------------------
 # (This also backs analyzer.jd_match_score - kept here so all three "model"
 # integrations live in one place and are easy to find/swap.)
 
@@ -40,10 +29,8 @@ try:
 except ImportError:
     SentenceTransformer = None
     cos_sim = None
-
 _sbert_model = None
 _sbert_load_attempted = False
-
 
 def get_sbert_model():
     """Lazily loads all-MiniLM-L6-v2 once per process. Only attempts once —
@@ -62,8 +49,6 @@ def get_sbert_model():
     except Exception:
         _sbert_model = None
     return _sbert_model
-
-
 def sbert_similarity(text_a, text_b):
     """Cosine similarity in [0, 1] between two texts using SBERT embeddings.
     Returns None if sentence-transformers isn't installed (caller should
@@ -75,10 +60,7 @@ def sbert_similarity(text_a, text_b):
     emb_b = model.encode(text_b)
     return float(cos_sim(emb_a, emb_b)[0][0])
 
-
-# --------------------------------------------------------------------------
 # 2. spaCy — structured extraction: education, experience, certifications
-# --------------------------------------------------------------------------
 
 try:
     import spacy
@@ -86,7 +68,6 @@ try:
 except ImportError:
     spacy = None
     PhraseMatcher = None
-
 _spacy_nlp = None
 _spacy_load_attempted = False
 
@@ -118,7 +99,6 @@ _JOB_TITLE_HINTS = re.compile(
 
 _YEAR_RE = re.compile(r"\b(19|20)\d{2}\b")
 
-
 def get_spacy_nlp():
     """Lazily loads the small English pipeline. Only attempts once per
     process (subsequent calls just return whatever the first attempt got,
@@ -135,31 +115,24 @@ def get_spacy_nlp():
     except OSError:
         _spacy_nlp = None
     return _spacy_nlp
-
-
 def _build_matcher(nlp, phrases):
     matcher = PhraseMatcher(nlp.vocab, attr="LOWER")
     patterns = [nlp.make_doc(p) for p in phrases]
     matcher.add("PHRASES", patterns)
     return matcher
-
-
 def extract_entities_spacy(text, skill_vocab=None, experience_text=None, education_text=None):
     """Runs spaCy NER + PhraseMatcher over the resume to pull out:
       - education: [{"degree": ..., "institution": ..., "year": ...}]
       - experience: [{"title": ..., "organization": ..., "dates": ...}]
       - certifications: [str, ...]
       - organizations: raw ORG entities spaCy found (used as a sanity list)
-
     Returns None if spaCy / the English model isn't available so callers
     can skip this enrichment entirely.
     """
     nlp = get_spacy_nlp()
     if nlp is None:
         return None
-
     doc = nlp(text[:20000])  # cap for speed/memory on very long documents
-
     orgs = list(dict.fromkeys(ent.text.strip() for ent in doc.ents if ent.label_ == "ORG"))
     dates = list(dict.fromkeys(ent.text.strip() for ent in doc.ents if ent.label_ == "DATE"))
 
@@ -269,7 +242,6 @@ def extract_entities_spacy(text, skill_vocab=None, experience_text=None, educati
         skill_matcher = _build_matcher(nlp, list(skill_vocab))
         for _, s, e in skill_matcher(doc):
             ner_skills.add(doc[s:e].text)
-
     return {
         "education": education[:8],
         "experience": dedup[:10],
@@ -278,21 +250,13 @@ def extract_entities_spacy(text, skill_vocab=None, experience_text=None, educati
         "ner_skills": sorted(ner_skills),
     }
 
-
-# --------------------------------------------------------------------------
 # 3. XGBoost — learned ATS-parseability score
-# --------------------------------------------------------------------------
-# There's no public labeled "did this resume pass an ATS" dataset, so this
-# model is trained on synthetically generated feature vectors whose labels
-# come from a slightly noisy version of the same structural heuristics the
-# rule-based checker (analyzer.analyze_ats_risk) already uses. The point of
-# the model isn't to invent ground truth from nothing — it's to learn a
-# smooth, non-linear combination of those signals (interactions the flat
-# point-based system can't express, e.g. "tables are much worse when
-# section headers are ALSO non-standard") and to expose feature
-# importances. Swap ATS_TRAINING_DATA generation for a real labeled dataset
-# if/when one is available; the feature/inference plumbing won't need to
-# change.
+# No public labeled "did this resume pass an ATS" dataset exists, so this
+# model trains on synthetic feature vectors labeled from the same
+# structural heuristics the rule-based checker uses. This lets it learn
+# non-linear interactions (e.g. tables are worse when headers are also
+# non-standard) instead of flat point deductions. Swap in a real labeled
+# dataset here later if one becomes available.
 
 ATS_FEATURE_NAMES = [
     "word_count",
@@ -314,15 +278,12 @@ try:
     import joblib
 except ImportError:
     joblib = None
-
 try:
     import xgboost as xgb
 except ImportError:
     xgb = None
-
 _ats_model = None
 _ats_model_load_attempted = False
-
 
 def build_ats_feature_vector(
     word_count, has_email, has_phone, has_linkedin, num_core_sections,
@@ -336,13 +297,10 @@ def build_ats_feature_vector(
         int(has_unusual_bullets), matched_standard_headers, skills_count,
         bullet_count, quantified_bullet_ratio,
     ]], dtype=float)
-
-
 def _synthetic_ats_training_data(n=6000, seed=42):
     """Generates random-but-plausible resumes-as-feature-vectors plus a
     noisy proxy label built from domain heuristics, for training only."""
     rng = np.random.default_rng(seed)
-
     word_count = rng.integers(80, 1400, n)
     has_email = rng.integers(0, 2, n)
     has_phone = rng.integers(0, 2, n)
@@ -356,14 +314,12 @@ def _synthetic_ats_training_data(n=6000, seed=42):
     skills_count = rng.integers(0, 30, n)
     bullet_count = rng.integers(0, 40, n)
     quantified_bullet_ratio = rng.random(n)
-
     X = np.column_stack([
         word_count, has_email, has_phone, has_linkedin, num_core_sections,
         has_tables, has_images, gap_line_ratio, has_unusual_bullets,
         matched_standard_headers, skills_count, bullet_count,
         quantified_bullet_ratio,
     ]).astype(float)
-
     length_score = np.where(
         (word_count >= 350) & (word_count <= 900), 15,
         np.clip(15 - np.abs(word_count - 625) / 60, 0, 15),
@@ -388,15 +344,12 @@ def _synthetic_ats_training_data(n=6000, seed=42):
     y = y + rng.normal(0, 4, n)  # label noise
     y = np.clip(y, 0, 100)
     return X, y
-
-
 def train_ats_xgboost_model(save_path=ATS_MODEL_PATH):
     """Trains the XGBoost ATS-score regressor on synthetic data and saves
     it with joblib. Run this offline (see train_ats_model.py); analyzer.py
     only ever loads the saved model at request time."""
     if xgb is None or joblib is None:
         raise RuntimeError("xgboost and joblib must be installed to train the ATS model.")
-
     X, y = _synthetic_ats_training_data()
     model = xgb.XGBRegressor(
         n_estimators=200,
@@ -410,8 +363,6 @@ def train_ats_xgboost_model(save_path=ATS_MODEL_PATH):
     model.fit(X, y)
     joblib.dump({"model": model, "feature_names": ATS_FEATURE_NAMES}, save_path)
     return model
-
-
 def get_ats_model():
     global _ats_model, _ats_model_load_attempted
     if _ats_model_load_attempted:
@@ -425,8 +376,6 @@ def get_ats_model():
     except Exception:
         _ats_model = None
     return _ats_model
-
-
 def predict_ats_score(feature_vector):
     """Returns a 0-100 predicted ATS-parseability score, or None if the
     model isn't available (caller should rely on the rule-based risk_level
@@ -439,8 +388,6 @@ def predict_ats_score(feature_vector):
         return round(max(0.0, min(100.0, pred)), 1)
     except Exception:
         return None
-
-
 def ats_feature_importances():
     """Returns {feature_name: importance} for the trained model, or None."""
     model = get_ats_model()

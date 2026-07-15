@@ -4,7 +4,7 @@ import tempfile
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
-from analyzer import extract_text, score_resume, get_ai_feedback, analyze_ats_risk, get_bullet_rewrites, get_project_enhancements
+from analyzer import extract_text, score_resume, analyze_ats_risk, get_bullet_rewrites, get_project_enhancements
 import ml_models
 
 FRONTEND_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -24,7 +24,6 @@ def index():
 def health():
     return jsonify({
         "status": "ok",
-        "ai_feedback_enabled": bool(os.environ.get("GROQ_API_KEY")),
         # Surfaces which of the three ML integrations are actually active in
         # this deployment (each degrades gracefully to rule-based logic if
         # its package/model file is missing) — handy for debugging setup.
@@ -50,7 +49,6 @@ def analyze():
         return jsonify({"error": "File too large. Max size is 5 MB."}), 400
     jd_text = request.form.get("job_description", "").strip()
     target_role = request.form.get("target_role", "").strip()
-    want_ai_feedback = request.form.get("ai_feedback", "false").lower() == "true"
     suffix = "." + file.filename.rsplit(".", 1)[-1].lower()
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         file.save(tmp.name)
@@ -68,15 +66,10 @@ def analyze():
         )
         analysis["ats_risk"] = ats_risk
 
-        # Bullet point rewrite suggestions — uses the AI reviewer for higher
-        # quality rewrites when ai_feedback is requested and a key is set,
-        # otherwise falls back to the local rule-based rewriter.
-        analysis["bullet_rewrites"] = get_bullet_rewrites(text, use_ai=want_ai_feedback)
-        analysis["project_enhancements"] = get_project_enhancements(text, use_ai=want_ai_feedback)
-        if want_ai_feedback:
-            analysis["ai_feedback"] = get_ai_feedback(text, jd_text, analysis)
-        else:
-            analysis["ai_feedback"] = None
+        # Bullet point and project description rewrite suggestions, using
+        # the local rule-based rewriter.
+        analysis["bullet_rewrites"] = get_bullet_rewrites(text)
+        analysis["project_enhancements"] = get_project_enhancements(text)
         return jsonify(analysis)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
@@ -90,4 +83,4 @@ def analyze():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     debug = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
-    app.run(host="0.0.0.0", port=port, debug=debug)
+    app.run(host="127.0.0.1", port=port, debug=debug)

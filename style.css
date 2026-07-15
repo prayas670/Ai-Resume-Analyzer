@@ -384,17 +384,6 @@ textarea#jdInput:focus {
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
-.ai-toggle {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin-top: 14px;
-  font-size: 13px;
-  color: var(--ink-soft);
-  cursor: pointer;
-}
-.ai-toggle input { margin-top: 3px; }
-
 .scan-btn {
   position: relative;
   overflow: hidden;
@@ -809,12 +798,6 @@ textarea#jdInput:focus {
   font-weight: 600;
 }
 
-.ai-feedback {
-  white-space: pre-line;
-  line-height: 1.6;
-  font-size: 14.5px;
-}
-
 /* Section-wise score bars */
 .section-bars {
   display: flex;
@@ -1008,18 +991,6 @@ textarea#jdInput:focus {
   color: var(--ink-soft);
 }
 .bullet-notes li { margin-bottom: 2px; }
-.ai-pill {
-  display: inline-block;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  text-transform: uppercase;
-  background: var(--ink);
-  color: var(--paper);
-  padding: 1px 6px;
-  border-radius: 3px;
-  margin-left: 6px;
-  vertical-align: middle;
-}
 
 /* Suggested roles */
 .role-suggestions {

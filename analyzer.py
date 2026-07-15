@@ -1,16 +1,13 @@
 """
-Core analysis engine for the AI Resume Analyzer. Runs entirely locally with
-regex/scikit-learn, so the app works with zero API keys. If a Groq API key
-is set, it additionally asks an LLM for qualitative feedback.
+Core analysis engine for the resume analyzer. Runs entirely locally with
+regex/scikit-learn, so the app works with zero API keys.
 """
 
 import os
 import re
-import json
 import difflib
 from datetime import datetime
 
-import requests
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -1147,12 +1144,10 @@ def rule_based_bullet_rewrite(bullet):
         notes.append("No quantified outcome detected — add a specific number, percentage, or dollar amount.")
     if not notes:
         notes.append("Already reasonably strong — consider tightening the wording further.")
-    return {"original": bullet, "suggested": core, "notes": notes, "ai_powered": False}
-def get_bullet_rewrites(text, use_ai=False, max_bullets=5):
-    """Returns rewrite suggestions for the weakest bullet points found in the
-    resume. Uses the Groq LLM for higher-quality rewrites when a key is
-    configured and ai_feedback was requested; otherwise falls back to the
-    local rule-based rewriter, which always works with no API key."""
+    return {"original": bullet, "suggested": core, "notes": notes}
+def get_bullet_rewrites(text, max_bullets=5):
+    """Returns rule-based rewrite suggestions for the weakest bullet points
+    found in the resume (weak opener and/or no quantified result)."""
     chunks = split_sections(text)
     bullet_source = "\n".join([chunks.get("experience", ""), chunks.get("projects", "")]).strip()
     if not bullet_source:
@@ -1161,50 +1156,7 @@ def get_bullet_rewrites(text, use_ai=False, max_bullets=5):
     weak = [b for b in bullets if is_weak_bullet(b)][:max_bullets]
     if not weak:
         return []
-    if use_ai and os.environ.get("GROQ_API_KEY"):
-        ai_result = ai_rewrite_bullets(weak)
-        if ai_result:
-            return ai_result
     return [rule_based_bullet_rewrite(b) for b in weak]
-def ai_rewrite_bullets(bullets):
-    api_key = os.environ.get("GROQ_API_KEY")
-    if not api_key:
-        return None
-    numbered = "\n".join(f"{i + 1}. {b}" for i, b in enumerate(bullets))
-    prompt = f"""Rewrite each of the following resume bullet points so it starts with a
-strong action verb and includes a plausible quantified metric placeholder if
-none exists. Keep each rewrite to one line, similar length to the original.
-Return ONLY a JSON array of strings (no markdown, no commentary), one
-rewrite per input bullet, in the same order.
-
-BULLETS:
-{numbered}
-"""
-    try:
-        resp = requests.post(
-            GROQ_API_URL,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            data=json.dumps({
-                "model": GROQ_MODEL,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.4,
-                "max_tokens": 600,
-            }),
-            timeout=20,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        content = data["choices"][0]["message"]["content"].strip()
-        content = re.sub(r"^```(json)?|```$", "", content, flags=re.M).strip()
-        rewrites = json.loads(content)
-        if not isinstance(rewrites, list) or len(rewrites) != len(bullets):
-            return None
-        return [
-            {"original": b, "suggested": str(r), "notes": ["Rewritten by AI reviewer."], "ai_powered": True}
-            for b, r in zip(bullets, rewrites)
-        ]
-    except Exception:
-        return None
 
 # Project Description Enhancer
 
@@ -1234,46 +1186,8 @@ def rule_based_project_enhancement(bullet):
         notes.append("Good project description. Ensure it clearly states your specific contribution if it was a team project.")
     if not core.endswith("."):
         core = core.rstrip(", ") + "."
-    return {"original": bullet, "suggested": core, "notes": notes, "ai_powered": False}
-def ai_enhance_project_bullets(bullets):
-    api_key = os.environ.get("GROQ_API_KEY")
-    if not api_key:
-        return None
-    numbered = "\n".join(f"{i + 1}. {b}" for i, b in enumerate(bullets))
-    prompt = f"""Enhance each of the following resume project descriptions to make them sound more professional and impactful.
-Highlight any implied technical skills and suggest how to quantify the outcomes.
-Keep each rewrite to one line, similar length to the original.
-Return ONLY a JSON array of strings (no markdown, no commentary), one rewrite per input bullet, in the same order.
-
-PROJECT BULLETS:
-{numbered}
-"""
-    try:
-        resp = requests.post(
-            GROQ_API_URL,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            data=json.dumps({
-                "model": GROQ_MODEL,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.4,
-                "max_tokens": 600,
-            }),
-            timeout=20,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        content = data["choices"][0]["message"]["content"].strip()
-        content = re.sub(r"^```(json)?|```$", "", content, flags=re.M).strip()
-        rewrites = json.loads(content)
-        if not isinstance(rewrites, list) or len(rewrites) != len(bullets):
-            return None
-        return [
-            {"original": b, "suggested": str(r), "notes": ["Enhanced by AI reviewer to sound more impactful and technical."], "ai_powered": True}
-            for b, r in zip(bullets, rewrites)
-        ]
-    except Exception:
-        return None
-def get_project_enhancements(text, use_ai=False, max_bullets=3):
+    return {"original": bullet, "suggested": core, "notes": notes}
+def get_project_enhancements(text, max_bullets=3):
     chunks = split_sections(text)
     proj_text = chunks.get("projects", "").strip()
     if not proj_text:
@@ -1286,49 +1200,4 @@ def get_project_enhancements(text, use_ai=False, max_bullets=3):
         bullets = bullets[:max_bullets]
     if not bullets:
         return []
-    if use_ai and os.environ.get("GROQ_API_KEY"):
-        ai_result = ai_enhance_project_bullets(bullets)
-        if ai_result:
-            return ai_result
     return [rule_based_project_enhancement(b) for b in bullets]
-
-# Optional: free LLM feedback via Groq (https://console.groq.com/ - free tier)
-
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.1-8b-instant"
-
-def get_ai_feedback(resume_text, jd_text, analysis):
-    """Returns a short natural-language critique from a free Groq-hosted LLM,
-    or None if no GROQ_API_KEY is configured / the call fails."""
-    api_key = os.environ.get("GROQ_API_KEY")
-    if not api_key:
-        return None
-    prompt = f"""You are an expert technical recruiter. In 4-6 concise bullet
-points, give direct, specific feedback on this resume{" against the job description" if jd_text else ""}.
-Focus on what to change, not generic praise.
-
-RESUME:
-{resume_text[:4000]}
-
-{"JOB DESCRIPTION:\n" + jd_text[:2000] if jd_text else ""}
-
-Current automated scores — structure: {analysis['structure_score']}/100,
-content quality: {analysis['content_score']}/100, skills coverage: {analysis['skills_score']}/100.
-"""
-    try:
-        resp = requests.post(
-            GROQ_API_URL,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            data=json.dumps({
-                "model": GROQ_MODEL,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.4,
-                "max_tokens": 500,
-            }),
-            timeout=20,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        return f"(AI feedback unavailable: {e})"

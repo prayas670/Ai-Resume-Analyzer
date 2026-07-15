@@ -58,11 +58,6 @@
         <textarea id="jdInput"
           placeholder="Paste the job description here to get a keyword match score against a specific role..."></textarea>
 
-        <label class="ai-toggle">
-          <input type="checkbox" id="aiToggle" />
-          <span>Include AI-generated feedback (needs a free Groq API key set on the server)</span>
-        </label>
-
         <button class="scan-btn" id="analyzeBtn" disabled>
           <span class="btn-label">Run scan</span>
         </button>
@@ -251,11 +246,6 @@
           <ol class="suggestions" id="suggestionsList"></ol>
         </div>
 
-        <div class="card wide" id="aiCard" hidden>
-          <h3>AI reviewer notes</h3>
-          <p class="ai-feedback" id="aiFeedback"></p>
-        </div>
-
       </div>
     </section>
 
@@ -263,7 +253,7 @@
 
   <footer class="footer">
     <div class="wrap">
-      <p>Runs entirely on local NLP scoring — no data leaves your server unless AI feedback is enabled.</p>
+      <p>Runs entirely on local NLP scoring — no data ever leaves your server.</p>
     </div>
   </footer>
 

@@ -783,6 +783,39 @@ textarea#jdInput:focus {
   .jd-columns { grid-template-columns: 1fr; }
 }
 
+.contribution-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: center;
+}
+.contribution-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+}
+.contribution-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.contribution-label {
+  color: var(--ink-soft);
+  flex: 1;
+}
+.contribution-value {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.contribution-score {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
 .suggestions {
   margin: 0;
   padding-left: 22px;
@@ -1177,4 +1210,78 @@ textarea#jdInput:focus {
 @keyframes chartFadeIn {
   from { opacity: 0; transform: translateY(10px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ============================================================
+   PDF export mode
+   Toggled on #report (and body) by script.js immediately before
+   html2pdf runs, and removed again right after. Fixes three bugs
+   that only show up in the exported PDF (never on-screen):
+
+   1. Cards/chips use translucent rgba() backgrounds designed to sit
+      on top of the dark <body> aurora background. html2pdf only
+      captures the #report element itself, so that dark backdrop is
+      never part of the snapshot — the translucent layers composite
+      against html2canvas's default white canvas instead, washing
+      out every card to a pale, low-contrast gray and making the
+      warm parchment ink color nearly invisible on top of it.
+   2. Scroll-reveal (.reveal) elements only reach opacity:1 once the
+      user has actually scrolled them into view. Anything below the
+      fold at the moment "Download PDF Report" is clicked is still
+      partially/fully transparent, so it shows up as faint or
+      missing text in the PDF.
+   3. Two-column layouts (report-grid, jd-columns, dashboard-grid,
+      subscore-row) are sized for a wide desktop viewport and run
+      past the right edge of a printed Letter-size page.
+   ============================================================ */
+body.pdf-exporting {
+  background: var(--bg-dark);
+}
+#report.pdf-exporting {
+  background: var(--bg-dark);
+  padding: 24px;
+}
+.pdf-exporting .reveal {
+  opacity: 1 !important;
+  transform: none !important;
+  transition: none !important;
+}
+.pdf-exporting .card,
+.pdf-exporting .subscore {
+  background: #1A1C15 !important; /* solid stand-in for --bg-card, since alpha blending over nothing isn't reliable in the snapshot */
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transition: none !important;
+  transform: none !important;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.pdf-exporting .card:hover,
+.pdf-exporting .subscore:hover {
+  transform: none !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+  background: #1A1C15 !important;
+}
+.pdf-exporting .report-grid,
+.pdf-exporting .jd-columns,
+.pdf-exporting .dashboard-grid,
+.pdf-exporting .subscore-row {
+  grid-template-columns: 1fr !important;
+}
+.pdf-exporting .chart-container {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+  height: 280px;
+}
+.pdf-exporting .heatmap-container {
+  break-inside: avoid;
+}
+.pdf-exporting .heatmap-block {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.pdf-exporting .bullet-item {
+  break-inside: avoid;
+  page-break-inside: avoid;
 }

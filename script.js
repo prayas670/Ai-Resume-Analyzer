@@ -149,15 +149,16 @@ function renderReport(data) {
   subs.forEach(([label, val], i) => {
     const div = document.createElement("div");
     div.className = "subscore";
-    div.innerHTML = `<span class="subscore-label">${label}</span><span class="subscore-value">${val == null ? "—" : "0.0/10"}</span>`;
+    div.innerHTML = `<span class="subscore-label">${label}</span><span class="subscore-value">${val == null ? "—" : "0/100"}</span>`;
     subRow.appendChild(div);
     if (val != null) {
       const valueEl = div.querySelector(".subscore-value");
-      setTimeout(() => countUpTo(valueEl, val / 10, "/10"), i * 60);
+      setTimeout(() => countUpTo(valueEl, val, "/100"), i * 60);
     }
   });
   renderSectionScores(data.section_scores);
   renderHeatmap(data.section_scores);
+  renderAtsContribution(data.ats_contribution);
   renderCompleteness(data.completeness);
   renderAtsRisk(data.ats_risk);
   renderEntityProfile(data.entities);
@@ -339,7 +340,7 @@ function renderSectionScores(sectionScores) {
     track.appendChild(fill);
     const valueEl = document.createElement("div");
     valueEl.className = "section-bar-value";
-    valueEl.textContent = s.score == null ? "—" : `${(s.score / 10).toFixed(1)}/10`;
+    valueEl.textContent = s.score == null ? "—" : `${s.score}/100`;
     row.appendChild(label);
     row.appendChild(track);
     row.appendChild(valueEl);
@@ -366,16 +367,87 @@ function renderHeatmap(sectionScores) {
     block.style.flexGrow = weight;
 
     block.style.color = "#fff";
-    const displayScore = s.score == null ? "—" : (s.score / 10).toFixed(1);
-    block.innerHTML = `<span class="heatmap-label">${escapeHtml(s.label)}</span><span class="heatmap-score">${displayScore}/10</span>`;
+    const displayScore = s.score == null ? "—" : s.score;
+    block.innerHTML = `<span class="heatmap-label">${escapeHtml(s.label)}</span><span class="heatmap-score">${displayScore}/100</span>`;
     container.appendChild(block);
   });
 }
+// --- ATS Score Contribution Analysis ---
+
+const CONTRIBUTION_COLORS = {
+  Experience: "#3E9C8C",
+  Skills: "#CC9544",
+  Projects: "#D9A238",
+  Education: "#4FBE82",
+  Certifications: "#A97A22",
+  Others: "#7A705C",
+};
+
+let atsContributionChartInstance = null;
+
+function renderAtsContribution(contribution) {
+  const card = document.getElementById("atsContributionCard");
+  const legend = document.getElementById("atsContributionLegend");
+  const canvas = document.getElementById("atsContributionChart");
+  if (!contribution || !contribution.length) {
+    if (card) card.hidden = true;
+    return;
+  }
+  if (card) card.hidden = false;
+
+  const labels = contribution.map((c) => c.section);
+  const values = contribution.map((c) => c.percentage);
+  const colors = contribution.map((c) => CONTRIBUTION_COLORS[c.section] || "#7A705C");
+
+  const ctx = canvas.getContext("2d");
+  if (atsContributionChartInstance) atsContributionChartInstance.destroy();
+  atsContributionChartInstance = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors,
+        borderColor: "#0B0D0B",
+        borderWidth: 2,
+        hoverOffset: 8,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: "62%",
+      animation: { duration: 900, easing: "easeOutQuart" },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          ...CHART_TOOLTIP_BASE,
+          callbacks: { label: (item) => ` ${item.label}: ${item.formattedValue}%` },
+        },
+      },
+    },
+  });
+
+  legend.innerHTML = "";
+  contribution.forEach((c) => {
+    const row = document.createElement("div");
+    row.className = "contribution-row";
+    const color = CONTRIBUTION_COLORS[c.section] || "#7A705C";
+    row.innerHTML = `
+      <span class="contribution-swatch" style="background:${color}"></span>
+      <span class="contribution-label">${escapeHtml(c.section)}</span>
+      <span class="contribution-score">${c.section_score}/100 quality</span>
+      <span class="contribution-value">${c.percentage.toFixed(1)}%</span>
+    `;
+    legend.appendChild(row);
+  });
+}
+
 // --- Completeness score ---
 
 function renderCompleteness(completeness) {
   if (!completeness) return;
-  document.getElementById("completenessPct").textContent = `${(completeness.score / 10).toFixed(1)}/10`;
+  document.getElementById("completenessPct").textContent = `${completeness.score}/100`;
   const fill = document.getElementById("completenessBarFill");
   fill.style.width = "0%";
   requestAnimationFrame(() => { fill.style.width = `${completeness.score}%`; });
@@ -400,7 +472,7 @@ function renderAtsRisk(atsRisk) {
   const mlValue = document.getElementById("atsMlScoreValue");
   if (atsRisk.ml_ats_score !== null && atsRisk.ml_ats_score !== undefined) {
     mlLine.hidden = false;
-    mlValue.textContent = (atsRisk.ml_ats_score / 10).toFixed(1);
+    mlValue.textContent = atsRisk.ml_ats_score;
   } else if (mlLine) {
     mlLine.hidden = true;
   }
@@ -508,15 +580,15 @@ function renderBulletRewrites(bulletRewrites) {
   });
 }
 
-// Animates a subscore value counting up from zero, e.g. "0.0/10".
-function countUpTo(el, targetValue, suffix, duration = 700) {
+// Animates a subscore value counting up from zero, e.g. "0/100".
+function countUpTo(el, targetValue, suffix, duration = 700, decimals = 0) {
   const start = performance.now();
   function tick(now) {
     const progress = Math.min((now - start) / duration, 1);
     const eased = 1 - Math.pow(1 - progress, 3);
-    el.textContent = `${(eased * targetValue).toFixed(1)}${suffix}`;
+    el.textContent = `${(eased * targetValue).toFixed(decimals)}${suffix}`;
     if (progress < 1) requestAnimationFrame(tick);
-    else el.textContent = `${targetValue.toFixed(1)}${suffix}`;
+    else el.textContent = `${targetValue.toFixed(decimals)}${suffix}`;
   }
   requestAnimationFrame(tick);
 }
@@ -543,16 +615,16 @@ function animateGauge(score) {
     fill.style.strokeDashoffset = offset;
   });
   let current = 0;
-  const target = score / 10;
+  const target = score;
   const duration = 800;
   const start = performance.now();
   const numberEl = document.getElementById("scoreNumber");
   function tick(now) {
     const progress = Math.min((now - start) / duration, 1);
     current = progress * target;
-    numberEl.textContent = current.toFixed(1);
+    numberEl.textContent = Math.round(current);
     if (progress < 1) requestAnimationFrame(tick);
-    else numberEl.textContent = target.toFixed(1);
+    else numberEl.textContent = Math.round(target);
   }
   requestAnimationFrame(tick);
 }
@@ -560,16 +632,56 @@ function animateGauge(score) {
 // --- Dashboard & PDF export ---
 
 if (downloadPdfBtn) {
-  downloadPdfBtn.addEventListener("click", () => {
+  downloadPdfBtn.addEventListener("click", async () => {
     const element = document.getElementById("report");
+    downloadPdfBtn.disabled = true;
+    const originalLabel = downloadPdfBtn.textContent;
+    downloadPdfBtn.textContent = "Preparing PDF...";
     downloadPdfBtn.style.display = "none";
-    html2pdf().from(element).set({
-      margin: 0.5,
-      filename: 'Resume-Analysis-Report.pdf',
-      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-    }).save().then(() => {
-      downloadPdfBtn.style.display = "inline-block";
+
+    // Scroll-reveal elements only reach opacity:1 once actually scrolled
+    // into view — anything below the fold is still faded at click time,
+    // so force everything visible before the snapshot is taken.
+    const revealEls = element.querySelectorAll(".reveal");
+    revealEls.forEach((el) => {
+      el.classList.add("in-view");
+      el.style.transitionDelay = "0s";
     });
+    document.body.classList.add("pdf-exporting");
+    element.classList.add("pdf-exporting");
+
+    // Let the layout/style changes above actually paint, and give any
+    // still-settling chart animations a moment to finish, before capturing.
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    try {
+      await html2pdf()
+        .from(element)
+        .set({
+          margin: 0.4,
+          filename: "Resume-Analysis-Report.pdf",
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: "#0B0D0B", // matches --bg-dark; without this html2canvas defaults to white and washes out every card
+            windowWidth: element.scrollWidth,
+          },
+          jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
+          pagebreak: { mode: ["css", "legacy"], avoid: [".card", ".subscore", ".heatmap-block", ".bullet-item"] },
+        })
+        .save();
+    } catch (err) {
+      showError("Could not generate the PDF report. Please try again.");
+    } finally {
+      document.body.classList.remove("pdf-exporting");
+      element.classList.remove("pdf-exporting");
+      revealEls.forEach((el) => { el.style.transitionDelay = ""; });
+      downloadPdfBtn.disabled = false;
+      downloadPdfBtn.textContent = originalLabel;
+      downloadPdfBtn.style.display = "inline-block";
+    }
   });
 }
 
@@ -649,7 +761,7 @@ function renderDashboard(data) {
   const dataBar = [];
   Object.values(data.section_scores).forEach(s => {
     labelsBar.push(s.label);
-    dataBar.push((s.score || 0) / 10);
+    dataBar.push(s.score || 0);
   });
   const barFill = ctxBar.createLinearGradient(0, 0, 0, 260);
   barFill.addColorStop(0, '#3E9C8C');
@@ -677,7 +789,7 @@ function renderDashboard(data) {
       animation: { duration: 900, easing: 'easeOutQuart' },
       scales: {
         y: {
-          beginAtZero: true, max: 10,
+          beginAtZero: true, max: 100,
           grid: { color: 'rgba(242,236,221,0.05)' },
           border: { display: false },
           ticks: { color: '#7A705C', font: { size: 11 } }
@@ -690,7 +802,7 @@ function renderDashboard(data) {
       },
       plugins: {
         legend: { display: false },
-        tooltip: { ...CHART_TOOLTIP_BASE, callbacks: { label: (ctx) => ` ${Number(ctx.formattedValue).toFixed(1)}/10` } }
+        tooltip: { ...CHART_TOOLTIP_BASE, callbacks: { label: (ctx) => ` ${Number(ctx.formattedValue).toFixed(0)}/100` } }
       }
     }
   });
@@ -804,11 +916,11 @@ function renderProjectQuality(data) {
   subs.forEach((s, i) => {
     const div = document.createElement("div");
     div.className = "subscore";
-    div.innerHTML = `<span class="subscore-label">${s.label}</span><span class="subscore-value">${s.score == null ? "—" : "0.0/10"}</span>`;
+    div.innerHTML = `<span class="subscore-label">${s.label}</span><span class="subscore-value">${s.score == null ? "—" : "0/100"}</span>`;
     r.appendChild(div);
     if (s.score != null) {
       const valueEl = div.querySelector(".subscore-value");
-      setTimeout(() => countUpTo(valueEl, s.score / 10, "/10"), i * 60);
+      setTimeout(() => countUpTo(valueEl, s.score, "/100"), i * 60);
     }
   });
   const sl = document.getElementById("projectSuggestionsList");
@@ -904,7 +1016,7 @@ function renderJDMatch(data) {
   }
   c.hidden = false;
   const jd = data.jd_match;
-  document.getElementById("jdSimilarity").textContent = (jd.similarity / 10).toFixed(1) + "/10";
+  document.getElementById("jdSimilarity").textContent = jd.similarity + "/100";
   renderDensityChips("reqMatchedChips", jd.required_matched || [], jd.keyword_density, true);
   renderDensityChips("reqMissingChips", jd.required_missing || [], jd.keyword_density, false);
   const prefWrap = document.getElementById("preferredSkillsWrap");

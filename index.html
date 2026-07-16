@@ -85,7 +85,7 @@
           </svg>
           <div class="gauge-center">
             <span class="gauge-number" id="scoreNumber">0</span>
-            <span class="gauge-max">/10</span>
+            <span class="gauge-max">/100</span>
             <span class="gauge-grade" id="gaugeGrade"></span>
           </div>
         </div>
@@ -118,14 +118,14 @@
         </div>
 
         <div class="card wide" id="sectionScoresCard">
-          <h3>Section-wise score <span class="card-subtitle" style="display:inline;">(out of 10)</span></h3>
+          <h3>Section-wise score <span class="card-subtitle" style="display:inline;">(out of 100)</span></h3>
           <div class="section-bars" id="sectionBars"></div>
         </div>
 
         <div class="card" id="completenessCard">
           <div class="completeness-header">
             <h3>Completeness score</h3>
-            <span class="completeness-pct" id="completenessPct">0.0/10</span>
+            <span class="completeness-pct" id="completenessPct">0/100</span>
           </div>
           <div class="completeness-bar-track">
             <div class="completeness-bar-fill" id="completenessBarFill"></div>
@@ -138,8 +138,19 @@
             <h3>ATS risk analysis</h3>
             <span class="risk-badge" id="riskBadge">—</span>
           </div>
-          <p class="card-subtitle" id="atsMlScoreLine" hidden>ML-predicted ATS pass score (XGBoost): <strong id="atsMlScoreValue">—</strong>/10</p>
+          <p class="card-subtitle" id="atsMlScoreLine" hidden>ML-predicted ATS pass score (XGBoost): <strong id="atsMlScoreValue">—</strong>/100</p>
           <ul class="ats-issues" id="atsIssues"></ul>
+        </div>
+
+        <div class="card wide" id="atsContributionCard">
+          <h3>ATS Score Contribution Analysis</h3>
+          <p class="card-subtitle">How much each section of your resume contributes to the final ATS score, based on how much of the document it occupies and how strong it is.</p>
+          <div class="jd-columns">
+            <div class="chart-container" style="height: 260px;">
+              <canvas id="atsContributionChart"></canvas>
+            </div>
+            <div class="contribution-legend" id="atsContributionLegend"></div>
+          </div>
         </div>
 
         <div class="card wide" id="profileCard" hidden>
@@ -200,7 +211,7 @@
 
         <div class="card wide" id="jdCard" hidden>
           <h3>Job description match & Skill Gap</h3>
-          <p class="jd-similarity">Similarity score: <strong id="jdSimilarity">0.0/10</strong></p>
+          <p class="jd-similarity">Similarity score: <strong id="jdSimilarity">0/100</strong></p>
 
           <div class="jd-columns">
             <div>

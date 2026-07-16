@@ -758,6 +758,9 @@ def score_resume(text, jd_text=None, ats_risk=None, target_role=None):
     result["completeness"] = completeness_score(
         text, sections, contact, skills_found, quantified, total_bullets
     )
+    result["ats_contribution"] = ats_contribution_analysis(
+        text, chunks=chunks, section_scores=result["section_scores"]
+    )
 
     # spaCy: structured extraction of education/experience/certifications,
     # plus an NER-based skills cross-check. None if spaCy isn't installed.
@@ -961,6 +964,175 @@ def completeness_score(text, sections, contact, skills_found, quantified, total_
     score = round(passed / len(checklist) * 100)
     missing = [label for label, ok in checklist if not ok]
     return {"score": score, "checklist": checklist, "missing": missing}
+
+# ATS Score Contribution Analysis
+#
+# Breaks the resume down into the zones a real ATS parser would actually
+# read (Projects, Experience, Skills, Education, Certifications, Others) and
+# reports what percentage of the final ATS score each one is responsible
+# for. This is purely a *reporting* layer on top of the existing scoring
+# logic above (section_wise_scores / completeness_score / analyze_ats_risk)
+# — it does not change how structure_score, content_score, skills_score, or
+# ml_ats_score are computed anywhere else.
+#
+# Each section's contribution is driven by two things pulled straight from
+# the resume, never hardcoded:
+#   1. "weight" — how much of the resume's parseable text actually lives in
+#      that section (word count share). A section an ATS never sees can't
+#      meaningfully move the score.
+#   2. "quality" — that section's own 0-100 score from the existing
+#      section_wise_scores()/certification heuristics above.
+# contribution_i = weight_i * quality_i, renormalized so all contributions
+# always sum to exactly 100%.
+
+CERT_HEADER_PATTERN = _HEAD_LEAD + r"(certifications?|licenses?|credentials?)" + _HEAD_TAIL
+
+def extract_certifications_chunk(text):
+    """Best-effort extraction of a standalone Certifications/Licenses block.
+    Kept intentionally independent of split_sections() (which feeds the main
+    scoring pipeline) so this reporting-only feature can never alter the
+    existing section-splitting behavior used elsewhere."""
+    lines = text.splitlines()
+    header_patterns = SECTION_HEADER_PATTERNS + [("certifications", CERT_HEADER_PATTERN)]
+    in_cert = False
+    buffer = []
+    for line in lines:
+        stripped = line.strip()
+        matched = None
+        for name, pattern in header_patterns:
+            if re.match(pattern, stripped, re.I):
+                matched = name
+                break
+        if matched == "certifications":
+            in_cert = True
+            continue
+        elif matched is not None:
+            in_cert = False
+            continue
+        if in_cert:
+            buffer.append(line)
+    return "\n".join(buffer)
+
+def score_certifications_chunk(cert_text):
+    """0-100 quality score for the certifications block, in the same style
+    as the other per-section scores in section_wise_scores()."""
+    cert_text = (cert_text or "").strip()
+    if not cert_text:
+        return {"label": "Certifications", "score": 0, "present": False, "count": 0}
+    lines = [l.strip() for l in cert_text.splitlines() if l.strip()]
+    count = len(lines)
+    score = min(40 + count * 20, 100)
+    return {"label": "Certifications", "score": score, "present": True, "count": count}
+
+def ats_contribution_analysis(text, chunks=None, section_scores=None):
+    """Dynamically computes what share of the final ATS score each resume
+    section is responsible for. Returns percentages that always total 100."""
+    if chunks is None:
+        chunks = split_sections(text)
+    if section_scores is None:
+        section_scores = section_wise_scores(text)
+
+    cert_chunk = extract_certifications_chunk(text)
+    cert_info = score_certifications_chunk(cert_chunk)
+
+    total_words = max(len(re.findall(r"\w+", text)), 1)
+
+    def wc(chunk_text):
+        return len(re.findall(r"\w+", chunk_text or ""))
+
+    experience_wc = wc(chunks.get("experience", ""))
+    education_wc = wc(chunks.get("education", ""))
+    skills_wc = wc(chunks.get("skills", ""))
+    projects_wc = wc(chunks.get("projects", ""))
+    cert_wc = wc(cert_chunk)
+    header_wc = wc(chunks.get("header", ""))
+    summary_wc = wc(chunks.get("summary", ""))
+
+    # Anything not attributed to a named section (header/contact zone,
+    # summary, plus any leftover text split_sections couldn't classify)
+    # rolls into "Others" so all word counts always account for 100% of
+    # the document, and thus the final percentages always sum to 100.
+    classified_wc = experience_wc + education_wc + skills_wc + projects_wc + cert_wc
+    others_wc = max(total_words - classified_wc, 0)
+
+    contact_score = section_scores.get("contact", {}).get("score", 0) or 0
+    summary_score = section_scores.get("summary", {}).get("score", 0) or 0
+    # "Others" quality = blend of contact-info completeness and summary
+    # quality (weighted by how much text each actually has), since those are
+    # the two zones folded into it.
+    if header_wc + summary_wc > 0:
+        others_quality = round(
+            (contact_score * header_wc + summary_score * summary_wc) / max(header_wc + summary_wc, 1)
+        )
+    else:
+        others_quality = contact_score
+
+    projects_score = section_scores.get("projects", {}).get("score") or 0
+    experience_score = section_scores.get("experience", {}).get("score") or 0
+    education_score = section_scores.get("education", {}).get("score") or 0
+    skills_score = section_scores.get("skills", {}).get("score") or 0
+
+    raw = {
+        "Projects": projects_wc * projects_score,
+        "Experience": experience_wc * experience_score,
+        "Skills": skills_wc * skills_score,
+        "Education": education_wc * education_score,
+        "Certifications": cert_wc * cert_info["score"],
+        "Others": others_wc * others_quality,
+    }
+
+    total_raw = sum(raw.values())
+    if total_raw <= 0:
+        # No section carries any weighted quality (e.g. a near-empty resume)
+        # — fall back to a purely presence-based split so the chart still
+        # shows something meaningful instead of all zeros.
+        presence_weight = {
+            "Projects": projects_wc,
+            "Experience": experience_wc,
+            "Skills": skills_wc,
+            "Education": education_wc,
+            "Certifications": cert_wc,
+            "Others": max(others_wc, 1 if total_words else 0),
+        }
+        total_presence = sum(presence_weight.values()) or 1
+        raw = presence_weight
+        total_raw = total_presence
+
+    percentages = {k: (v / total_raw * 100 if total_raw else 0) for k, v in raw.items()}
+
+    # Round to 1 decimal place, then fix up rounding drift on the largest
+    # bucket so the displayed percentages always total exactly 100.0.
+    rounded = {k: round(v, 1) for k, v in percentages.items()}
+    drift = round(100.0 - sum(rounded.values()), 1)
+    if abs(drift) >= 0.1:
+        top_key = max(rounded, key=rounded.get)
+        rounded[top_key] = round(rounded[top_key] + drift, 1)
+
+    order = ["Experience", "Skills", "Projects", "Education", "Certifications", "Others"]
+    breakdown = [
+        {
+            "section": name,
+            "percentage": max(rounded[name], 0),
+            "section_score": {
+                "Projects": projects_score,
+                "Experience": experience_score,
+                "Skills": skills_score,
+                "Education": education_score,
+                "Certifications": cert_info["score"],
+                "Others": others_quality,
+            }[name],
+            "present": {
+                "Projects": projects_wc > 0,
+                "Experience": experience_wc > 0,
+                "Skills": skills_wc > 0,
+                "Education": education_wc > 0,
+                "Certifications": cert_info["present"],
+                "Others": (header_wc + summary_wc) > 0,
+            }[name],
+        }
+        for name in order
+    ]
+    return breakdown
 
 # ATS risk analysis
 

@@ -1253,8 +1253,6 @@ body.pdf-exporting {
   -webkit-backdrop-filter: none !important;
   transition: none !important;
   transform: none !important;
-  break-inside: avoid;
-  page-break-inside: avoid;
 }
 .pdf-exporting .card:hover,
 .pdf-exporting .subscore:hover {
@@ -1274,14 +1272,59 @@ body.pdf-exporting {
   transform: none !important;
   height: 280px;
 }
+
+/* --- Page-break strategy ---
+   Putting break-inside:avoid on every full .card (as this used to do) is
+   what caused the huge blank gaps in exported PDFs: cards with several
+   repeated sub-items (Suggested roles, Bullet point rewrites, Project
+   enhancements, etc.) can easily be taller than the space left on a page,
+   and an "avoid" element that doesn't fit gets pushed whole to the next
+   page — leaving all the unused space above it blank. Instead, only the
+   *small, atomic* pieces are protected from splitting (so you never get a
+   role card or checklist row sliced in half), while the containing .card
+   is left free to flow across a page break like a normal paragraph would.
+   The two chart cards are the one exception: a chart image can't be
+   usefully split at all, and each is short enough that avoiding a break
+   never produces a large gap. */
+.pdf-exporting .card.chart-card {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.pdf-exporting .subscore {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
 .pdf-exporting .heatmap-container {
   break-inside: avoid;
 }
-.pdf-exporting .heatmap-block {
+.pdf-exporting .heatmap-block,
+.pdf-exporting .bullet-item,
+.pdf-exporting .role-suggestion,
+.pdf-exporting .checklist li,
+.pdf-exporting .suggestions li {
   break-inside: avoid;
   page-break-inside: avoid;
 }
-.pdf-exporting .bullet-item {
-  break-inside: avoid;
-  page-break-inside: avoid;
+
+/* --- Case-file stamp fix ---
+   The stamp is normally position:absolute with a fixed right offset,
+   tuned for the on-screen viewport width. html2pdf captures the report
+   at element.scrollWidth (a different width), so the header's flex items
+   can wrap differently and the stamp's fixed coordinates land on top of
+   the role/experience badges instead of beside them. Dropping it back
+   into normal flex flow for the export guarantees it can never overlap
+   its siblings, regardless of the captured width. */
+.pdf-exporting .report-header {
+  align-items: flex-start;
+}
+.pdf-exporting .stamp {
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
+  inset: auto !important;
+  transform: rotate(-8deg) scale(1) !important;
+  opacity: 1 !important;
+  animation: none !important;
+  margin: 4px 22px 0 !important;
+  flex-shrink: 0;
 }

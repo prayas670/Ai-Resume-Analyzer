@@ -669,7 +669,25 @@ if (downloadPdfBtn) {
             windowWidth: element.scrollWidth,
           },
           jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
-          pagebreak: { mode: ["css", "legacy"], avoid: [".card", ".subscore", ".heatmap-block", ".bullet-item"] },
+          // "legacy" and "css" are two separate page-break algorithms; running
+          // both at once is a known cause of extra phantom blank space in
+          // html2pdf output, so "css" alone is used here. Only small, atomic
+          // pieces are listed as avoid — not whole .card containers — so a
+          // long card (e.g. Suggested roles, Bullet point rewrites) can flow
+          // across a page break instead of being pushed whole onto the next
+          // page and leaving the rest of the previous page empty.
+          pagebreak: {
+            mode: ["css"],
+            avoid: [
+              ".card.chart-card",
+              ".subscore",
+              ".heatmap-block",
+              ".bullet-item",
+              ".role-suggestion",
+              ".checklist li",
+              ".suggestions li",
+            ],
+          },
         })
         .save();
     } catch (err) {

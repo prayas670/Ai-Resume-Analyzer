@@ -1263,15 +1263,53 @@ def analyze_ats_risk(filepath, filename, text):
 
 # Bullet point rewriting
 
+_BULLET_MARKER_RE = re.compile(r"^[•\-\*\u2022➤◆■●▪]")
+
+def _merge_wrapped_lines(raw_lines):
+    """pdfplumber/docx extraction returns one physical line per visually
+    wrapped line, so a single bullet that wraps onto a second line in the
+    original resume (very common for anything ending in a quantified
+    result, e.g. "...delivered predictions with" / "95% accuracy.") comes
+    back here as two separate lines with no bullet marker on the second
+    one. Left unmerged, the first (incomplete) line gets treated as its
+    own weak bullet — truncated mid-sentence — and the orphaned
+    continuation line is silently dropped, which also makes a genuinely
+    quantified bullet get flagged as having no measurable outcome.
+
+    This reassembles a continuation line onto the previous line only when
+    both signals agree: the previous line doesn't already end in
+    sentence-ending punctuation, AND the current line starts lowercase or
+    with a digit (e.g. "95%", "$10K") — the two hallmarks of a wrapped
+    trailing clause rather than a genuinely new bullet/header."""
+    merged = []
+    for line in raw_lines:
+        is_marked = bool(_BULLET_MARKER_RE.match(line))
+        is_shouty_header = line.isupper() and len(line.split()) <= 6
+        prev_incomplete = merged and not merged[-1].rstrip().endswith((".", ":", "!", "?"))
+        looks_like_continuation = bool(re.match(r"^[a-z]", line)) or bool(re.match(r"^\d", line))
+        if (
+            merged
+            and not is_marked
+            and not is_shouty_header
+            and "@" not in line and "|" not in line
+            and prev_incomplete
+            and looks_like_continuation
+        ):
+            merged[-1] = merged[-1].rstrip() + " " + line.strip()
+        else:
+            merged.append(line)
+    return merged
+
 def extract_bullet_lines(text):
     """Pulls out lines that actually look like resume bullet points — either
     explicitly marked (-, *, •, ...) or sentence-like lines with enough lowercase
     connective words to distinguish them from short Title Case headers like a
     job title or company name line."""
-    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    raw_lines = [l.strip() for l in text.splitlines() if l.strip()]
+    lines = _merge_wrapped_lines(raw_lines)
     bullets = []
     for l in lines:
-        is_marked = bool(re.match(r"^[•\-\*\u2022➤◆■●▪]", l))
+        is_marked = bool(_BULLET_MARKER_RE.match(l))
         clean = re.sub(r"^[•\-\*\u2022➤◆■●▪]\s*", "", l).strip()
         if "@" in clean or "|" in clean:
             continue

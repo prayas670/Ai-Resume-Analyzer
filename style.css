@@ -975,6 +975,28 @@ textarea#jdInput:focus {
   margin: 10px 0 0;
 }
 
+/* Duplicate content detection */
+.duplicate-subsection {
+  margin-top: 20px;
+}
+.duplicate-subsection:first-of-type {
+  margin-top: 16px;
+}
+.duplicate-subsection h4 {
+  color: var(--ink-soft);
+}
+.checklist .mark.count {
+  width: auto;
+  min-width: 30px;
+  font-size: 12px;
+  color: var(--amber-deep);
+}
+.checklist li.fail .mark.count { color: var(--coral); }
+.checklist li.clean {
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
 /* Bullet point rewrites */
 .card-subtitle {
   font-size: 13px;

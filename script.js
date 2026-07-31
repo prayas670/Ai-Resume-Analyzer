@@ -161,6 +161,7 @@ function renderReport(data) {
   renderAtsContribution(data.ats_contribution);
   renderCompleteness(data.completeness);
   renderAtsRisk(data.ats_risk);
+  renderDuplicateContent(data.duplicate_content);
   renderEntityProfile(data.entities);
   renderBulletRewrites(data.bullet_rewrites);
   renderProjectEnhancements(data.project_enhancements);
@@ -491,6 +492,87 @@ function renderAtsRisk(atsRisk) {
     li.innerHTML = `<span class="ats-issue-title">${issue.issue}</span><p class="ats-issue-tip">${issue.tip}</p>`;
     list.appendChild(li);
   });
+}
+
+// --- Duplicate content detection ---
+
+function renderDuplicateContent(duplicateContent) {
+  const card = document.getElementById("duplicateContentCard");
+  if (!card) return;
+  if (!duplicateContent) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+
+  const total = duplicateContent.total_issues || 0;
+  const badge = document.getElementById("duplicateBadge");
+  let label = "Clean", cls = "low";
+  if (total > 3) { label = "Needs cleanup"; cls = "high"; }
+  else if (total > 0) { label = "Minor"; cls = "medium"; }
+  badge.textContent = label;
+  badge.className = `risk-badge ${cls}`;
+
+  const cleanLi = (msg) => `<li class="clean"><span class="mark">✓</span><span>${msg}</span></li>`;
+
+  // Repeated Skills
+  const skillsList = document.getElementById("duplicateSkillsList");
+  skillsList.innerHTML = "";
+  const dupSkills = duplicateContent.duplicate_skills || [];
+  const overSkills = duplicateContent.overused_skills || [];
+  if (dupSkills.length === 0 && overSkills.length === 0) {
+    skillsList.innerHTML = cleanLi("No repeated skills detected.");
+  } else {
+    dupSkills.forEach((d) => {
+      const li = document.createElement("li");
+      li.className = "fail";
+      li.innerHTML = `<span class="mark count">${d.count}×</span><span>"${escapeHtml(d.skill)}" is listed ${d.count} times in your Skills section — remove the duplicates.</span>`;
+      skillsList.appendChild(li);
+    });
+    overSkills.forEach((d) => {
+      const li = document.createElement("li");
+      li.className = "fail";
+      li.innerHTML = `<span class="mark count">${d.count}×</span><span>"${escapeHtml(d.skill)}" is mentioned ${d.count} times across your resume — possible keyword stuffing.</span>`;
+      skillsList.appendChild(li);
+    });
+  }
+
+  // Repeated Sentences
+  const sentList = document.getElementById("duplicateSentencesList");
+  sentList.innerHTML = "";
+  const dupSentences = duplicateContent.duplicate_sentences || [];
+  if (dupSentences.length === 0) {
+    sentList.innerHTML = cleanLi("No repeated sentences detected.");
+  } else {
+    dupSentences.forEach((d) => {
+      const li = document.createElement("li");
+      li.className = "fail";
+      li.innerHTML = `<span class="mark count">${d.count}×</span><span>"${escapeHtml(d.sentence)}"</span>`;
+      sentList.appendChild(li);
+    });
+  }
+
+  // Repeated Bullet Points
+  const bulletList = document.getElementById("duplicateBulletsList");
+  bulletList.innerHTML = "";
+  const dupBullets = duplicateContent.duplicate_bullets || [];
+  const nearBullets = duplicateContent.near_duplicate_bullets || [];
+  if (dupBullets.length === 0 && nearBullets.length === 0) {
+    bulletList.innerHTML = cleanLi("No repeated or near-identical bullet points detected.");
+  } else {
+    dupBullets.forEach((d) => {
+      const li = document.createElement("li");
+      li.className = "fail";
+      li.innerHTML = `<span class="mark count">${d.count}×</span><span>"${escapeHtml(d.bullet)}"</span>`;
+      bulletList.appendChild(li);
+    });
+    nearBullets.forEach((d) => {
+      const li = document.createElement("li");
+      li.className = "fail";
+      li.innerHTML = `<span class="mark count">${d.similarity}%</span><span>"${escapeHtml(d.bullet_a)}" is very similar to "${escapeHtml(d.bullet_b)}" — make sure each role shows a distinct contribution.</span>`;
+      bulletList.appendChild(li);
+    });
+  }
 }
 
 // --- Extracted profile (spaCy) ---

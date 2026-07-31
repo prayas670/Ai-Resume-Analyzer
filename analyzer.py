@@ -6,6 +6,7 @@ regex/scikit-learn, so the app works with zero API keys.
 import os
 import re
 import difflib
+from collections import Counter
 from datetime import datetime
 
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -774,6 +775,8 @@ def score_resume(text, jd_text=None, ats_risk=None, target_role=None):
     if entities and entities.get("ner_skills"):
         merged = sorted(set(result["skills_found"]) | set(entities["ner_skills"]))
         result["skills_found"] = merged
+
+    result["duplicate_content"] = detect_duplicate_content(text, chunks=chunks)
     return result
 def build_suggestions(r):
     tips = []
@@ -1411,3 +1414,169 @@ def get_project_enhancements(text, max_bullets=3):
     if not bullets:
         return []
     return [rule_based_project_enhancement(b) for b in bullets]
+
+# Duplicate Content Detection
+#
+# Flags redundancy that a rule-based scorer above wouldn't otherwise catch:
+# skills listed twice in the Skills section (usually a copy-paste slip),
+# skills mentioned an unusually high number of times across the whole
+# document (possible keyword stuffing), sentences repeated verbatim, and
+# bullet points that are duplicated or near-duplicated across different
+# jobs/projects (a common tell of a resume stitched together in a hurry).
+# This is purely a reporting layer — it doesn't change structure_score,
+# content_score, skills_score, or any other existing scoring path.
+
+SKILL_SEPARATOR_RE = re.compile(r"[,\n\r|;•\u2022\u25CF\u25AA]+")
+SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
+
+def find_duplicate_skills(chunks):
+    """Flags skills listed more than once, verbatim, inside the resume's own
+    Skills section. Splits on commas/newlines/bullets/pipes (not hyphens or
+    slashes, so compound names like 'Node.js' or 'CI/CD' survive intact),
+    and strips a leading sub-header word (e.g. 'Languages:') off the first
+    token of each line so that doesn't get counted as a skill itself."""
+    skills_text = (chunks.get("skills") or "").strip()
+    if not skills_text:
+        return []
+    raw_tokens = [t.strip() for t in SKILL_SEPARATOR_RE.split(skills_text) if t.strip()]
+    tokens = []
+    for t in raw_tokens:
+        t = re.sub(r"^[A-Za-z /&-]{2,30}:\s*", "", t).strip()
+        if t and len(t) <= 40:
+            tokens.append(t)
+    counts = Counter(t.lower() for t in tokens)
+    first_seen = {}
+    for t in tokens:
+        first_seen.setdefault(t.lower(), t)
+    duplicates = [
+        {"skill": first_seen[key], "count": count}
+        for key, count in counts.items()
+        if count > 1
+    ]
+    duplicates.sort(key=lambda d: -d["count"])
+    return duplicates
+
+def find_overused_skills(text, min_count=4):
+    """Flags skills mentioned an unusually high number of times across the
+    whole resume — often a sign of deliberate keyword stuffing to game ATS
+    keyword matching, which reads as low-effort (and sometimes backfires
+    with smarter ATS parsers) rather than helping."""
+    occurrences = keyword_processor.extract_keywords(text)
+    counts = Counter(occurrences)
+    overused = [
+        {"skill": skill, "count": count}
+        for skill, count in counts.items()
+        if count >= min_count
+    ]
+    overused.sort(key=lambda d: -d["count"])
+    return overused
+
+def find_duplicate_sentences(text, min_words=5, max_results=8):
+    """Flags sentences (or sentence-like lines) that appear more than once,
+    verbatim, anywhere in the resume — a common tell of a resume stitched
+    together from a template or from multiple older drafts."""
+    raw_lines = [l.strip() for l in text.splitlines() if l.strip()]
+    candidates = []
+    for line in raw_lines:
+        clean = re.sub(r"^[•\-\*\u2022➤◆■●▪]\s*", "", line).strip()
+        for sent in SENTENCE_SPLIT_RE.split(clean):
+            sent = sent.strip()
+            if sent:
+                candidates.append(sent)
+    counts = Counter()
+    first_seen = {}
+    for s in candidates:
+        if len(s.split()) < min_words:
+            continue
+        key = re.sub(r"[^\w\s]", "", s.lower())
+        key = re.sub(r"\s+", " ", key).strip()
+        if not key:
+            continue
+        counts[key] += 1
+        first_seen.setdefault(key, s)
+    duplicates = [
+        {"sentence": first_seen[key], "count": count}
+        for key, count in counts.items()
+        if count > 1
+    ]
+    duplicates.sort(key=lambda d: -d["count"])
+    return duplicates[:max_results]
+
+def _normalize_bullet_for_dedup(bullet):
+    # Numbers are swapped for a placeholder so two bullets that only differ
+    # by a metric (e.g. "grew revenue by 12%" vs "...by 30%") still register
+    # as the same underlying claim, copy-pasted across roles.
+    b = re.sub(r"\d+", "#", bullet.lower())
+    b = re.sub(r"[^\w\s#]", "", b)
+    return re.sub(r"\s+", " ", b).strip()
+
+def find_duplicate_bullets(text, similarity_threshold=0.85, max_pairs=8, max_compare=120):
+    """Flags bullet points duplicated verbatim across different jobs or
+    projects, plus near-identical bullets (same claim reworded only
+    slightly) — both are just as noticeable to a recruiter skimming for
+    distinct, specific accomplishments per role."""
+    bullets = extract_bullet_lines(text)
+    if len(bullets) < 2:
+        return {"exact": [], "near": []}
+
+    counts = Counter()
+    first_seen = {}
+    for b in bullets:
+        key = _normalize_bullet_for_dedup(b)
+        if not key:
+            continue
+        counts[key] += 1
+        first_seen.setdefault(key, b)
+    exact = [
+        {"bullet": first_seen[key], "count": count}
+        for key, count in counts.items()
+        if count > 1
+    ]
+    exact.sort(key=lambda d: -d["count"])
+
+    # Near-duplicates: pairwise comparison over distinct bullets, bounded so
+    # this stays manageable even on a long resume (O(n^2) on max_compare).
+    distinct = list(dict.fromkeys(bullets))[:max_compare]
+    near = []
+    for i in range(len(distinct)):
+        ka = _normalize_bullet_for_dedup(distinct[i])
+        for j in range(i + 1, len(distinct)):
+            kb = _normalize_bullet_for_dedup(distinct[j])
+            if not ka or not kb or ka == kb:
+                continue  # exact duplicates already captured above
+            ratio = difflib.SequenceMatcher(None, ka, kb).ratio()
+            if ratio >= similarity_threshold:
+                near.append({
+                    "bullet_a": distinct[i],
+                    "bullet_b": distinct[j],
+                    "similarity": round(ratio * 100),
+                })
+    near.sort(key=lambda d: -d["similarity"])
+    return {"exact": exact, "near": near[:max_pairs]}
+
+def detect_duplicate_content(text, chunks=None):
+    """Top-level duplicate/redundancy scan surfaced in the 'Duplicate
+    Content Detection' report card: repeated skills, repeated sentences,
+    and repeated (or near-identical) bullet points."""
+    if chunks is None:
+        chunks = split_sections(text)
+    duplicate_skills = find_duplicate_skills(chunks)
+    overused_skills = find_overused_skills(text)
+    duplicate_sentences = find_duplicate_sentences(text)
+    bullets = find_duplicate_bullets(text)
+    total_issues = (
+        len(duplicate_skills)
+        + len(overused_skills)
+        + len(duplicate_sentences)
+        + len(bullets["exact"])
+        + len(bullets["near"])
+    )
+    return {
+        "duplicate_skills": duplicate_skills,
+        "overused_skills": overused_skills,
+        "duplicate_sentences": duplicate_sentences,
+        "duplicate_bullets": bullets["exact"],
+        "near_duplicate_bullets": bullets["near"],
+        "total_issues": total_issues,
+        "has_duplicates": total_issues > 0,
+    }

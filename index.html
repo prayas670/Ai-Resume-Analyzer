@@ -70,11 +70,7 @@
       <div class="report-header">
         <div>
           <div class="ticket-label"><span>03</span> Scan report</div>
-          <h2>Result printout
-            <span id="candidateLevelBadge" class="chip" style="font-size: 14px; vertical-align: middle; margin-left: 10px;"></span>
-            <span id="domainBadge" class="chip match" style="font-size: 14px; vertical-align: middle; margin-left: 5px;"></span>
-            <span id="experienceBadge" class="chip" style="font-size: 14px; vertical-align: middle; margin-left: 5px;"></span>
-          </h2>
+          <h2>Result printout</h2>
           <button id="downloadPdfBtn" class="pdf-btn">Download PDF Report</button>
         </div>
         <div class="stamp" id="gradeStamp" aria-hidden="true"><span id="stampText">CLEARED</span></div>
@@ -142,6 +138,30 @@
           <ul class="ats-issues" id="atsIssues"></ul>
         </div>
 
+        <div class="card" id="personalInfoCard">
+          <div class="ats-header">
+            <h3>Personal info &amp; bias-risk check</h3>
+            <span class="risk-badge" id="personalInfoBadge">—</span>
+          </div>
+          <p class="card-subtitle">Flags demographic details (photo, date of birth, marital status, etc.) that some hiring pipelines specifically don't want to see.</p>
+          <ul class="ats-issues" id="personalInfoIssues"></ul>
+        </div>
+
+        <div class="card wide" id="resumeHighlightCard">
+          <h3>Highlighted resume</h3>
+          <p class="card-subtitle">Your resume, as-extracted, with weak sentences and matched keywords marked right where they appear.</p>
+          <div class="highlight-legend">
+            <span class="legend-item"><span class="legend-swatch weak"></span>Weak sentence / phrase</span>
+            <span class="legend-item"><span class="legend-swatch keyword"></span>Matched keyword</span>
+            <span class="legend-item" id="legendMissingWrap"><span class="legend-swatch missing"></span>Missing keyword (listed below, not found in text)</span>
+          </div>
+          <div class="resume-highlight-text" id="resumeHighlightText"></div>
+          <div class="resume-missing-wrap" id="resumeMissingWrap" hidden>
+            <h4 class="missing-heading">Missing keywords</h4>
+            <div class="chips" id="resumeMissingChips"></div>
+          </div>
+        </div>
+
         <div class="card wide" id="duplicateContentCard">
           <div class="ats-header">
             <h3>Duplicate Content Detection</h3>
@@ -161,17 +181,6 @@
           <div class="duplicate-subsection">
             <h4>Repeated Bullet Points</h4>
             <ul class="checklist" id="duplicateBulletsList"></ul>
-          </div>
-        </div>
-
-        <div class="card wide" id="atsContributionCard">
-          <h3>ATS Score Contribution Analysis</h3>
-          <p class="card-subtitle">How much each section of your resume contributes to the final ATS score, based on how much of the document it occupies and how strong it is.</p>
-          <div class="jd-columns">
-            <div class="chart-container" style="height: 260px;">
-              <canvas id="atsContributionChart"></canvas>
-            </div>
-            <div class="contribution-legend" id="atsContributionLegend"></div>
           </div>
         </div>
 
@@ -208,12 +217,6 @@
           <p class="card-subtitle">Detailed breakdown of your project descriptions.</p>
           <div class="subscore-row" id="projectSubscoreRow"></div>
           <ol class="suggestions" id="projectSuggestionsList"></ol>
-        </div>
-
-        <div class="card wide" id="projectCard" hidden>
-          <h3>Project enhancements</h3>
-          <p class="card-subtitle" id="projectSubtitle"></p>
-          <div class="bullet-list" id="projectList"></div>
         </div>
 
         <div class="card wide" id="targetRoleCard" hidden>
@@ -266,12 +269,6 @@
                 </div>
             </div>
           </div>
-        </div>
-
-        <div class="card wide" id="roleSuggestionsCard" hidden>
-          <h3>Suggested roles</h3>
-          <p class="card-subtitle">Based on everything on your resume — like a recruiter scanning it cold — these are the roles you're currently the best fit for.</p>
-          <div class="role-suggestions" id="roleSuggestionsList"></div>
         </div>
 
         <div class="card wide" id="suggestionsCard">

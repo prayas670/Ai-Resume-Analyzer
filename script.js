@@ -125,19 +125,6 @@ function renderReport(data) {
   report.hidden = false;
   animateGauge(data.overall_score);
   renderGrade(data.overall_score);
-  const levelBadge = document.getElementById("candidateLevelBadge");
-  if (levelBadge && data.candidate_level) {
-    levelBadge.textContent = data.candidate_level + " Profile";
-  }
-  const domainBadge = document.getElementById("domainBadge");
-  if (domainBadge && data.domain && data.domain.domain) {
-    domainBadge.textContent = data.domain.domain;
-  }
-  const experienceBadge = document.getElementById("experienceBadge");
-  if (experienceBadge && data.experience_duration) {
-    const yrs = data.experience_duration.years;
-    experienceBadge.textContent = yrs > 0 ? yrs + " YOE" : "No Exp Detected";
-  }
   const subRow = document.getElementById("subscoreRow");
   subRow.innerHTML = "";
   const subs = [
@@ -158,13 +145,13 @@ function renderReport(data) {
   });
   renderSectionScores(data.section_scores);
   renderHeatmap(data.section_scores);
-  renderAtsContribution(data.ats_contribution);
   renderCompleteness(data.completeness);
   renderAtsRisk(data.ats_risk);
+  renderPersonalInfoRisk(data.personal_info_risk);
+  renderResumeHighlights(data.text_highlights);
   renderDuplicateContent(data.duplicate_content);
   renderEntityProfile(data.entities);
   renderBulletRewrites(data.bullet_rewrites);
-  renderProjectEnhancements(data.project_enhancements);
   renderProjectQuality(data);
   renderDashboard(data);
   const skillChips = document.getElementById("skillChips");
@@ -181,7 +168,6 @@ function renderReport(data) {
   }
   renderJDMatch(data);
   renderTargetRoleMatch(data);
-  renderSuggestedRoles(data);
   const suggList = document.getElementById("suggestionsList");
   suggList.innerHTML = "";
   data.suggestions.forEach((s) => {
@@ -373,77 +359,6 @@ function renderHeatmap(sectionScores) {
     container.appendChild(block);
   });
 }
-// --- ATS Score Contribution Analysis ---
-
-const CONTRIBUTION_COLORS = {
-  Experience: "#3E9C8C",
-  Skills: "#CC9544",
-  Projects: "#D9A238",
-  Education: "#4FBE82",
-  Certifications: "#A97A22",
-  Others: "#7A705C",
-};
-
-let atsContributionChartInstance = null;
-
-function renderAtsContribution(contribution) {
-  const card = document.getElementById("atsContributionCard");
-  const legend = document.getElementById("atsContributionLegend");
-  const canvas = document.getElementById("atsContributionChart");
-  if (!contribution || !contribution.length) {
-    if (card) card.hidden = true;
-    return;
-  }
-  if (card) card.hidden = false;
-
-  const labels = contribution.map((c) => c.section);
-  const values = contribution.map((c) => c.percentage);
-  const colors = contribution.map((c) => CONTRIBUTION_COLORS[c.section] || "#7A705C");
-
-  const ctx = canvas.getContext("2d");
-  if (atsContributionChartInstance) atsContributionChartInstance.destroy();
-  atsContributionChartInstance = new Chart(ctx, {
-    type: "doughnut",
-    data: {
-      labels,
-      datasets: [{
-        data: values,
-        backgroundColor: colors,
-        borderColor: "#0B0D0B",
-        borderWidth: 2,
-        hoverOffset: 8,
-      }],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      cutout: "62%",
-      animation: { duration: 900, easing: "easeOutQuart" },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          ...CHART_TOOLTIP_BASE,
-          callbacks: { label: (item) => ` ${item.label}: ${item.formattedValue}%` },
-        },
-      },
-    },
-  });
-
-  legend.innerHTML = "";
-  contribution.forEach((c) => {
-    const row = document.createElement("div");
-    row.className = "contribution-row";
-    const color = CONTRIBUTION_COLORS[c.section] || "#7A705C";
-    row.innerHTML = `
-      <span class="contribution-swatch" style="background:${color}"></span>
-      <span class="contribution-label">${escapeHtml(c.section)}</span>
-      <span class="contribution-score">${c.section_score}/100 quality</span>
-      <span class="contribution-value">${c.percentage.toFixed(1)}%</span>
-    `;
-    legend.appendChild(row);
-  });
-}
-
 // --- Completeness score ---
 
 function renderCompleteness(completeness) {
@@ -492,6 +407,77 @@ function renderAtsRisk(atsRisk) {
     li.innerHTML = `<span class="ats-issue-title">${issue.issue}</span><p class="ats-issue-tip">${issue.tip}</p>`;
     list.appendChild(li);
   });
+}
+
+// --- Personal info / bias-risk check ---
+
+function renderPersonalInfoRisk(personalInfoRisk) {
+  const card = document.getElementById("personalInfoCard");
+  if (!card) return;
+  if (!personalInfoRisk) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+  const badge = document.getElementById("personalInfoBadge");
+  badge.textContent = personalInfoRisk.risk_level === "Clean" ? "Clean" : `${personalInfoRisk.risk_level} risk`;
+  badge.className = `risk-badge ${personalInfoRisk.risk_level.toLowerCase()}`;
+  const list = document.getElementById("personalInfoIssues");
+  list.innerHTML = "";
+  if (!personalInfoRisk.flags || personalInfoRisk.flags.length === 0) {
+    const p = document.createElement("p");
+    p.className = "ats-clean";
+    p.textContent = "No personal/demographic details detected — no photo, date of birth, marital status, nationality, gender, or religion found on the page.";
+    list.appendChild(p);
+    return;
+  }
+  personalInfoRisk.flags.forEach((flag) => {
+    const li = document.createElement("li");
+    li.className = flag.severity;
+    li.innerHTML = `<span class="ats-issue-title">${escapeHtml(flag.item)}</span><p class="ats-issue-tip">${escapeHtml(flag.tip)}</p>`;
+    list.appendChild(li);
+  });
+}
+
+// --- Highlighted resume ---
+
+function renderResumeHighlights(textHighlights) {
+  const card = document.getElementById("resumeHighlightCard");
+  if (!card) return;
+  if (!textHighlights || !textHighlights.segments || textHighlights.segments.length === 0) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+  const textEl = document.getElementById("resumeHighlightText");
+  const html = textHighlights.segments
+    .map((seg) => {
+      const escaped = escapeHtml(seg.text);
+      if (seg.type === "weak") return `<mark class="hl-weak">${escaped}</mark>`;
+      if (seg.type === "keyword") return `<mark class="hl-keyword">${escaped}</mark>`;
+      return escaped;
+    })
+    .join("");
+  textEl.innerHTML = html || `<span class="resume-highlight-empty">No text extracted.</span>`;
+
+  const missingWrap = document.getElementById("resumeMissingWrap");
+  const missingChips = document.getElementById("resumeMissingChips");
+  const legendMissing = document.getElementById("legendMissingWrap");
+  const missing = textHighlights.missing_keywords || [];
+  missingChips.innerHTML = "";
+  if (missing.length === 0) {
+    missingWrap.hidden = true;
+    if (legendMissing) legendMissing.hidden = true;
+  } else {
+    missingWrap.hidden = false;
+    if (legendMissing) legendMissing.hidden = false;
+    missing.forEach((kw) => {
+      const span = document.createElement("span");
+      span.className = "chip miss";
+      span.textContent = kw;
+      missingChips.appendChild(span);
+    });
+  }
 }
 
 // --- Duplicate content detection ---
@@ -649,11 +635,13 @@ function renderBulletRewrites(bulletRewrites) {
     return;
   }
   card.hidden = false;
-  subtitle.textContent = "Rewrites for your weakest bullet points, using strong action verbs and quantified impact.";
+  subtitle.textContent = "Rewrites for the weakest bullet points across your Experience and Projects sections, using strong action verbs and quantified impact.";
   bulletRewrites.forEach((b) => {
     const item = document.createElement("div");
     item.className = "bullet-item";
+    const sectionTag = b.section ? `<div class="bullet-item-head"><span class="bullet-section-tag">${escapeHtml(b.section)}</span></div>` : "";
     item.innerHTML = `
+      ${sectionTag}
       <div class="bullet-original"><span class="bullet-tag before">Before</span><span>${escapeHtml(b.original)}</span></div>
       <div class="bullet-suggested"><span class="bullet-tag after">After</span><span>${escapeHtml(b.suggested)}</span></div>
       ${b.notes && b.notes.length ? `<ul class="bullet-notes">${b.notes.map((n) => `<li>${escapeHtml(n)}</li>`).join("")}</ul>` : ""}
@@ -755,9 +743,9 @@ if (downloadPdfBtn) {
           // both at once is a known cause of extra phantom blank space in
           // html2pdf output, so "css" alone is used here. Only small, atomic
           // pieces are listed as avoid — not whole .card containers — so a
-          // long card (e.g. Suggested roles, Bullet point rewrites) can flow
-          // across a page break instead of being pushed whole onto the next
-          // page and leaving the rest of the previous page empty.
+          // long card (e.g. Bullet point rewrites) can flow across a page
+          // break instead of being pushed whole onto the next page and
+          // leaving the rest of the previous page empty.
           pagebreak: {
             mode: ["css"],
             avoid: [
@@ -765,7 +753,6 @@ if (downloadPdfBtn) {
               ".subscore",
               ".heatmap-block",
               ".bullet-item",
-              ".role-suggestion",
               ".checklist li",
               ".suggestions li",
             ],
@@ -973,29 +960,6 @@ function renderSkillGap(matchedList, missingList) {
   });
 }
 
-function renderProjectEnhancements(projectEnhancements) {
-  const card = document.getElementById("projectCard");
-  const list = document.getElementById("projectList");
-  const subtitle = document.getElementById("projectSubtitle");
-  list.innerHTML = "";
-  if (!projectEnhancements || projectEnhancements.length === 0) {
-    card.hidden = true;
-    return;
-  }
-  card.hidden = false;
-  subtitle.textContent = "Enhancements for your project descriptions, focusing on metrics and technologies.";
-  projectEnhancements.forEach((b) => {
-    const item = document.createElement("div");
-    item.className = "bullet-item";
-    item.innerHTML = `
-      <div class="bullet-original"><span class="bullet-tag before">Original</span><span>${escapeHtml(b.original)}</span></div>
-      <div class="bullet-suggested"><span class="bullet-tag after">Suggested</span><span>${escapeHtml(b.suggested)}</span></div>
-      ${b.notes && b.notes.length ? '<ul class="bullet-notes">' + b.notes.map(n => '<li>' + escapeHtml(n) + '</li>').join("") + '</ul>' : ""}
-    `;
-    list.appendChild(item);
-  });
-}
-
 function renderProjectQuality(data) {
   const c = document.getElementById("projectQualityCard");
   if (!data.project_quality || !data.project_quality.metrics || Object.keys(data.project_quality.metrics).length === 0) {
@@ -1029,40 +993,6 @@ function renderProjectQuality(data) {
     const li = document.createElement("li");
     li.textContent = sug;
     sl.appendChild(li);
-  });
-}
-
-function renderSuggestedRoles(data) {
-  const c = document.getElementById("roleSuggestionsCard");
-  const list = document.getElementById("roleSuggestionsList");
-  const roles = data.suggested_roles;
-  if (!roles || roles.length === 0) {
-    c.hidden = true;
-    return;
-  }
-  c.hidden = false;
-  list.innerHTML = "";
-  roles.forEach((r) => {
-    const item = document.createElement("div");
-    item.className = "role-suggestion";
-    const missingText = r.missing_skills && r.missing_skills.length
-      ? `<span class="role-suggestion-missing"><strong>To strengthen this fit:</strong> ${escapeHtml(r.missing_skills.slice(0, 5).join(", "))}</span>`
-      : `<span class="role-suggestion-missing">No notable gaps — you're covered on the essentials.</span>`;
-    item.innerHTML = `
-      <div class="role-suggestion-head">
-        <span class="role-suggestion-name">${escapeHtml(r.role)}</span>
-        <span class="role-suggestion-score">${r.match_score}% match</span>
-      </div>
-      <div class="role-suggestion-bar-track">
-        <div class="role-suggestion-bar-fill" style="width:0%"></div>
-      </div>
-      <p class="role-suggestion-blurb">${escapeHtml(r.blurb)}</p>
-      ${missingText}
-    `;
-    list.appendChild(item);
-    requestAnimationFrame(() => {
-      item.querySelector(".role-suggestion-bar-fill").style.width = `${r.match_score}%`;
-    });
   });
 }
 

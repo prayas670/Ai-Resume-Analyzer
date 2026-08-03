@@ -4,7 +4,7 @@ import tempfile
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
-from analyzer import extract_text, score_resume, analyze_ats_risk, get_bullet_rewrites, get_project_enhancements
+from analyzer import extract_text, score_resume, analyze_ats_risk, get_bullet_rewrites
 import ml_models
 
 FRONTEND_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -66,10 +66,9 @@ def analyze():
         )
         analysis["ats_risk"] = ats_risk
 
-        # Bullet point and project description rewrite suggestions, using
+        # Bullet point rewrite suggestions (Experience + Projects), using
         # the local rule-based rewriter.
         analysis["bullet_rewrites"] = get_bullet_rewrites(text)
-        analysis["project_enhancements"] = get_project_enhancements(text)
         return jsonify(analysis)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400

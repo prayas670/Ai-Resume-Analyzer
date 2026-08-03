@@ -117,6 +117,29 @@ headers. Returns an overall Low/Medium/High risk level plus a tip for each
 issue found. This is a heuristic proxy — it can only see what a parser could
 extract, the same limitation a real ATS has.
 
+### Personal info & bias-risk check
+
+Scans for demographic details that are common on resume templates in some
+regions — a photo, date of birth/age, marital status, nationality, gender,
+religion — but that many employers hiring in the US, UK, Canada, and the EU
+specifically don't want to see. Several of these are protected
+characteristics, so some companies' ATS platforms and hiring policies are
+configured to flag or auto-reject applications that include them rather
+than take on discrimination risk. Purely advisory (Clean/Low/Medium/High) —
+it never changes `structure_score`, `overall_score`, or any other existing
+score.
+
+### Highlighted resume
+
+Renders your resume's own extracted text back on the page — not just
+scores — with weak sentences/bullets marked in one color and keywords
+matched against your skills (or the job description / target role, when
+supplied) marked in another, so you can see exactly *where* an issue lives
+instead of only reading it as a number. Keywords the job description or
+target role calls for but that don't appear anywhere in your resume are
+listed separately underneath (they obviously can't be highlighted inside
+text that doesn't contain them).
+
 ### Duplicate content detection
 
 Scans for redundancy that the section/content scores above wouldn't
@@ -137,9 +160,13 @@ This is a reporting layer only — it doesn't change `structure_score`,
 
 ### Bullet point rewrite
 
-Finds the weakest bullet points in your Experience/Projects sections (ones
-that don't start with a strong action verb or don't include a quantified
-result) and suggests a rewrite for each, using a local rule-based rewriter.
+Finds the weakest bullet points across both your Experience and Projects
+sections (ones that don't start with a strong action verb or don't include
+a quantified result) and suggests a rewrite for each, using a local
+rule-based rewriter — one unified feature covering both sections, with each
+suggestion tagged by where it came from. Bullets sourced from Projects get
+an extra check for a named tech stack, since that's a signal recruiters
+specifically look for there.
 
 ## Supported file types
 

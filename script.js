@@ -250,9 +250,9 @@ function renderDensityChips(containerId, keywords, densityMap, isMatch) {
 }
 
 function scoreColor(score) {
-  if (score < 50) return "#E2584F"; // coral
-  if (score < 75) return "#D9A238"; // amber
-  return "#4FBE82"; // green
+  if (score < 50) return "#F0555F"; // coral
+  if (score < 75) return "#F0A828"; // amber
+  return "#22C55E"; // green
 }
 
 // --- Section-wise score ---
@@ -290,11 +290,11 @@ function stampVerdict(grade) {
   if (!stamp || !text) return;
   const letter = grade[0];
   let verdict = "REVIEW";
-  let color = "#D9A238"; // amber
-  if (letter === "A") { verdict = "CLEARED"; color = "#4FBE82"; }
-  else if (letter === "B") { verdict = "STRONG"; color = "#3E9C8C"; }
-  else if (letter === "C") { verdict = "REVIEW"; color = "#D9A238"; }
-  else { verdict = "FLAGGED"; color = "#E2584F"; }
+  let color = "#F0A828"; // amber
+  if (letter === "A") { verdict = "CLEARED"; color = "#22C55E"; }
+  else if (letter === "B") { verdict = "STRONG"; color = "#2BD9B9"; }
+  else if (letter === "C") { verdict = "REVIEW"; color = "#F0A828"; }
+  else { verdict = "FLAGGED"; color = "#F0555F"; }
   text.textContent = verdict;
   stamp.style.setProperty("--stamp-color", color);
   stamp.classList.remove("show");
@@ -673,9 +673,9 @@ function animateGauge(score) {
   const circumference = 377; // 2 * PI * 60, matches stroke-dasharray in CSS
   const fill = document.getElementById("gaugeFill");
   const offset = circumference - (score / 100) * circumference;
-  let color = "#4FBE82"; // green
-  if (score < 50) color = "#E2584F"; // coral
-  else if (score < 75) color = "#D9A238"; // amber
+  let color = "#22C55E"; // green
+  if (score < 50) color = "#F0555F"; // coral
+  else if (score < 75) color = "#F0A828"; // amber
   fill.style.stroke = color;
 
   fill.style.transition = "none";
@@ -735,7 +735,7 @@ if (downloadPdfBtn) {
           html2canvas: {
             scale: 2,
             useCORS: true,
-            backgroundColor: "#0B0D0B", // matches --bg-dark; without this html2canvas defaults to white and washes out every card
+            backgroundColor: "#0A0E17", // matches --bg; without this html2canvas defaults to white and washes out every card
             windowWidth: element.scrollWidth,
           },
           jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
@@ -777,10 +777,10 @@ let barChartInstance = null;
 
 // Shared tooltip styling for all charts.
 const CHART_TOOLTIP_BASE = {
-  backgroundColor: 'rgba(18, 19, 15, 0.92)',
-  titleColor: '#F2ECDD',
-  bodyColor: '#C9BFA9',
-  borderColor: 'rgba(204, 149, 68, 0.35)',
+  backgroundColor: 'rgba(10, 14, 23, 0.94)',
+  titleColor: '#EDF1F8',
+  bodyColor: '#8993AC',
+  borderColor: 'rgba(76, 130, 255, 0.35)',
   borderWidth: 1,
   padding: 10,
   cornerRadius: 10,
@@ -801,8 +801,8 @@ function renderDashboard(data) {
     dataRadar.push(data.jd_match.similarity);
   }
   const radarFill = ctxRadar.createLinearGradient(0, 0, 0, 260);
-  radarFill.addColorStop(0, 'rgba(204, 149, 68, 0.38)');
-  radarFill.addColorStop(1, 'rgba(62, 156, 140, 0.08)');
+  radarFill.addColorStop(0, 'rgba(76, 130, 255, 0.35)');
+  radarFill.addColorStop(1, 'rgba(43, 217, 185, 0.06)');
   radarChartInstance = new Chart(ctxRadar, {
     type: 'radar',
     data: {
@@ -811,15 +811,15 @@ function renderDashboard(data) {
         label: 'Score',
         data: dataRadar,
         backgroundColor: radarFill,
-        borderColor: '#CC9544',
+        borderColor: '#4C82FF',
         borderWidth: 2.5,
-        pointBackgroundColor: '#0B0D0B',
-        pointBorderColor: '#3E9C8C',
+        pointBackgroundColor: '#0A0E17',
+        pointBorderColor: '#2BD9B9',
         pointBorderWidth: 2,
         pointRadius: 5,
         pointHoverRadius: 7,
-        pointHoverBackgroundColor: '#3E9C8C',
-        pointHoverBorderColor: '#F2ECDD',
+        pointHoverBackgroundColor: '#2BD9B9',
+        pointHoverBorderColor: '#EDF1F8',
         tension: 0.15,
       }]
     },
@@ -830,10 +830,10 @@ function renderDashboard(data) {
       scales: {
         r: {
           min: 0, max: 100,
-          angleLines: { color: 'rgba(242,236,221,0.07)' },
-          grid: { color: 'rgba(242,236,221,0.07)', circular: true },
-          pointLabels: { color: '#C9BFA9', font: { family: "'Inter', sans-serif", size: 12, weight: '500' } },
-          ticks: { color: '#7A705C', backdropColor: 'transparent', stepSize: 25 }
+          angleLines: { color: 'rgba(148,163,184,0.14)' },
+          grid: { color: 'rgba(148,163,184,0.14)', circular: true },
+          pointLabels: { color: '#8993AC', font: { family: "'Inter', sans-serif", size: 12, weight: '500' } },
+          ticks: { color: '#5C6478', backdropColor: 'transparent', stepSize: 25 }
         }
       },
       plugins: {
@@ -851,11 +851,11 @@ function renderDashboard(data) {
     dataBar.push(s.score || 0);
   });
   const barFill = ctxBar.createLinearGradient(0, 0, 0, 260);
-  barFill.addColorStop(0, '#3E9C8C');
-  barFill.addColorStop(1, '#CC9544');
+  barFill.addColorStop(0, '#2BD9B9');
+  barFill.addColorStop(1, '#4C82FF');
   const barHoverFill = ctxBar.createLinearGradient(0, 0, 0, 260);
-  barHoverFill.addColorStop(0, '#E3B563');
-  barHoverFill.addColorStop(1, '#B98A3E');
+  barHoverFill.addColorStop(0, '#5FE8CE');
+  barHoverFill.addColorStop(1, '#7C9CFF');
   barChartInstance = new Chart(ctxBar, {
     type: 'bar',
     data: {
@@ -877,14 +877,14 @@ function renderDashboard(data) {
       scales: {
         y: {
           beginAtZero: true, max: 100,
-          grid: { color: 'rgba(242,236,221,0.05)' },
+          grid: { color: 'rgba(148,163,184,0.10)' },
           border: { display: false },
-          ticks: { color: '#7A705C', font: { size: 11 } }
+          ticks: { color: '#5C6478', font: { size: 11 } }
         },
         x: {
           grid: { display: false },
           border: { display: false },
-          ticks: { color: '#C9BFA9', font: { family: "'Inter', sans-serif", size: 11.5, weight: '500' } }
+          ticks: { color: '#8993AC', font: { family: "'Inter', sans-serif", size: 11.5, weight: '500' } }
         }
       },
       plugins: {
@@ -902,11 +902,11 @@ function renderSkillGap(matchedList, missingList) {
   const matchedCount = matchedList ? matchedList.length : 0;
   const missingCount = missingList ? missingList.length : 0;
   const matchedFill = ctx.createLinearGradient(0, 0, 0, 200);
-  matchedFill.addColorStop(0, '#6ED4A3');
-  matchedFill.addColorStop(1, '#3E9C8C');
+  matchedFill.addColorStop(0, '#4ADE80');
+  matchedFill.addColorStop(1, '#22C55E');
   const missingFill = ctx.createLinearGradient(0, 0, 0, 200);
-  missingFill.addColorStop(0, '#EB8079');
-  missingFill.addColorStop(1, '#E2584F');
+  missingFill.addColorStop(0, '#F5858D');
+  missingFill.addColorStop(1, '#F0555F');
 
   // Shows the match % in the doughnut hole.
   const centerTextPlugin = {
@@ -922,10 +922,10 @@ function renderSkillGap(matchedList, missingList) {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.font = "700 26px 'Outfit', sans-serif";
-      ctx.fillStyle = '#F2ECDD';
+      ctx.fillStyle = '#EDF1F8';
       ctx.fillText(`${pct}%`, cx, cy - 8);
       ctx.font = "600 10.5px 'JetBrains Mono', monospace";
-      ctx.fillStyle = '#A69C87';
+      ctx.fillStyle = '#8993AC';
       ctx.fillText('MATCHED', cx, cy + 14);
       ctx.restore();
     }
@@ -937,7 +937,7 @@ function renderSkillGap(matchedList, missingList) {
       datasets: [{
         data: [matchedCount, missingCount],
         backgroundColor: [matchedFill, missingFill],
-        borderColor: '#12140F',
+        borderColor: '#0A0E17',
         borderWidth: 3,
         hoverOffset: 10,
         spacing: 2,
@@ -951,7 +951,7 @@ function renderSkillGap(matchedList, missingList) {
       plugins: {
         legend: {
           position: 'bottom',
-          labels: { color: '#C9BFA9', font: { family: "'Inter', sans-serif", size: 12 }, usePointStyle: true, pointStyle: 'circle', padding: 16 }
+          labels: { color: '#8993AC', font: { family: "'Inter', sans-serif", size: 12 }, usePointStyle: true, pointStyle: 'circle', padding: 16 }
         },
         tooltip: CHART_TOOLTIP_BASE
       }

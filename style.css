@@ -1,41 +1,46 @@
-/* Design tokens — warm near-black base, brass primary, teal secondary */
+/* ============================================================
+   Design tokens — "Instrument Panel": deep graphite-navy base,
+   signal-blue + circuit-mint as the two-color brand system.
+   Semantic status colors (green/amber/coral) are kept separate
+   from the brand accents so pass/fail states always read clearly.
+   ============================================================ */
 :root {
-  --bg-dark: #0B0D0B;             /* warm near-black, coffee undertone */
-  --bg-dark-2: #12140F;
-  --bg-card: rgba(24, 25, 20, 0.58);
-  --bg-card-hover: rgba(31, 32, 26, 0.74);
-  --glass: rgba(9, 10, 8, 0.78);
+  --bg: #0A0E17;                  /* deep graphite-navy */
+  --bg-2: #0D1424;
+  --bg-card: rgba(148, 163, 184, 0.045);
+  --bg-card-hover: rgba(148, 163, 184, 0.08);
+  --glass: rgba(7, 10, 17, 0.82);
 
-  --ink: #F2ECDD;                 /* warm parchment white */
-  --ink-soft: #A69C87;
+  --ink: #EDF1F8;                 /* crisp cool white */
+  --ink-soft: #8993AC;            /* muted slate */
+  --ink-faint: #5C6478;           /* dim slate, chart ticks etc. */
 
-  --accent: #CC9544;              /* burnished brass — primary signature */
-  --accent-2: #3E9C8C;            /* verdigris teal — secondary */
-  --accent-glow: rgba(204, 149, 68, 0.45);
-  --accent-2-glow: rgba(62, 156, 140, 0.35);
-  --accent-deep: #9C6F2C;
+  --accent: #4C82FF;              /* signal blue — primary */
+  --accent-2: #2BD9B9;            /* circuit mint — secondary */
+  --accent-glow: rgba(76, 130, 255, 0.38);
+  --accent-2-glow: rgba(43, 217, 185, 0.30);
+  --accent-deep: #3563D6;
 
-  --gold: #E3B563;                /* lighter brass — premium highlight */
-  --gold-deep: #B98A3E;
+  --amber: #F0A828;
+  --amber-deep: #C9860F;
+  --coral: #F0555F;
+  --green: #22C55E;
 
-  --amber: #D9A238;
-  --amber-deep: #A97A22;
-  --coral: #E2584F;
-  --green: #4FBE82;
-
-  --line: rgba(242, 236, 221, 0.09);
+  --line: rgba(148, 163, 184, 0.14);
+  --line-strong: rgba(148, 163, 184, 0.24);
 
   --gradient-brand: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
-  --gradient-brand-3: linear-gradient(120deg, var(--accent) 0%, var(--accent-2) 55%, var(--gold) 100%);
-  --gradient-gold: linear-gradient(135deg, var(--gold) 0%, var(--amber) 100%);
+  --gradient-brand-3: linear-gradient(120deg, var(--accent) 0%, #7C9CFF 45%, var(--accent-2) 100%);
+  --gradient-premium: linear-gradient(135deg, var(--accent-2) 0%, var(--accent) 100%);
 
   --font-display: 'Outfit', sans-serif;
   --font-body: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Courier New', monospace;
 
-  --radius: 14px;
+  --radius: 12px;
+  --radius-sm: 8px;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-spring: cubic-bezier(0.34, 1.42, 0.64, 1);
 }
 
 * { box-sizing: border-box; }
@@ -43,7 +48,7 @@
 html, body {
   margin: 0;
   padding: 0;
-  background: var(--bg-dark);
+  background: var(--bg);
   color: var(--ink);
   font-family: var(--font-body);
   scroll-behavior: smooth;
@@ -61,76 +66,64 @@ html, body {
   * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
 
-/* Aurora background — drifting gradient blobs, CSS-only */
+/* Ambient background — two soft, slow-drifting gradient fields.
+   Kept quiet and low-contrast so it reads as atmosphere, not decor. */
 .aurora-bg {
   position: fixed;
   inset: 0;
   z-index: -2;
   overflow: hidden;
-  background: radial-gradient(ellipse at top, var(--bg-dark-2) 0%, var(--bg-dark) 60%);
+  background: radial-gradient(ellipse at top, var(--bg-2) 0%, var(--bg) 65%);
 }
 .aurora-bg span {
   position: absolute;
   border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.35;
+  filter: blur(120px);
+  opacity: 0.22;
   will-change: transform;
 }
 .aurora-bg span:nth-child(1) {
-  width: 620px; height: 620px;
-  top: -180px; left: -120px;
+  width: 640px; height: 640px;
+  top: -220px; left: -160px;
   background: var(--accent);
-  animation: driftA 26s ease-in-out infinite;
+  animation: driftA 34s ease-in-out infinite;
 }
 .aurora-bg span:nth-child(2) {
   width: 560px; height: 560px;
-  top: 10%; right: -180px;
+  top: 5%; right: -200px;
   background: var(--accent-2);
-  animation: driftB 32s ease-in-out infinite;
+  opacity: 0.16;
+  animation: driftB 40s ease-in-out infinite;
 }
 .aurora-bg span:nth-child(3) {
-  width: 460px; height: 460px;
-  bottom: -160px; left: 25%;
-  background: var(--gold);
-  opacity: 0.16;
-  animation: driftC 38s ease-in-out infinite;
+  display: none; /* two fields read as considered; three read as busy */
 }
 @keyframes driftA {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(60px, 80px) scale(1.12); }
+  50% { transform: translate(50px, 60px) scale(1.08); }
 }
 @keyframes driftB {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-70px, 60px) scale(1.08); }
-}
-@keyframes driftC {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(40px, -50px) scale(1.15); }
+  50% { transform: translate(-60px, 50px) scale(1.05); }
 }
 
-/* subtle background grid for a modern tech feel, sits above the aurora */
+/* Faint technical grid — a quiet nod to "scan lines" without literal texture */
 .scanline-overlay {
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: -1;
   background-image:
-    linear-gradient(rgba(242, 236, 221, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(242, 236, 221, 0.02) 1px, transparent 1px);
-  background-size: 32px 32px;
+    linear-gradient(rgba(148, 163, 184, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.035) 1px, transparent 1px);
+  background-size: 34px 34px;
   opacity: 0.5;
+  -webkit-mask-image: radial-gradient(ellipse at top, #000 0%, transparent 75%);
+  mask-image: radial-gradient(ellipse at top, #000 0%, transparent 75%);
 }
 
-/* Fine paper-grain texture overlay, pure CSS (no image assets). */
-.grain-overlay {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 40;
-  opacity: 0.05;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
+/* Grain texture retired — reads as vintage/film rather than modern instrumentation */
+.grain-overlay { display: none; }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -138,7 +131,7 @@ html, body {
 ::-webkit-scrollbar-thumb {
   background: linear-gradient(var(--accent), var(--accent-2));
   border-radius: 8px;
-  border: 2px solid var(--bg-dark);
+  border: 2px solid var(--bg);
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--accent-2); }
 * { scrollbar-color: var(--accent) transparent; scrollbar-width: thin; }
@@ -146,8 +139,8 @@ html, body {
 /* Scroll-reveal utility — JS toggles .in-view via IntersectionObserver */
 .reveal {
   opacity: 0;
-  transform: translateY(18px);
-  transition: opacity 0.6s var(--ease-out), transform 0.6s var(--ease-out);
+  transform: translateY(16px);
+  transition: opacity 0.55s var(--ease-out), transform 0.55s var(--ease-out);
 }
 .reveal.in-view {
   opacity: 1;
@@ -160,8 +153,8 @@ html, body {
   border-bottom: 1px solid var(--line);
   padding: 22px 0;
   background: var(--glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -185,17 +178,17 @@ html, body {
   -webkit-text-fill-color: transparent;
   filter: drop-shadow(0 2px 10px var(--accent-glow));
   display: inline-block;
-  animation: logoPulse 4s ease-in-out infinite;
+  animation: logoPulse 5s ease-in-out infinite;
 }
 @keyframes logoPulse {
   0%, 100% { filter: drop-shadow(0 2px 8px var(--accent-glow)); transform: scale(1); }
-  50% { filter: drop-shadow(0 2px 16px var(--accent-2-glow)); transform: scale(1.06); }
+  50% { filter: drop-shadow(0 2px 14px var(--accent-2-glow)); transform: scale(1.045); }
 }
 .logo-text {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 22px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
 }
 .tagline {
   font-family: var(--font-body);
@@ -218,12 +211,12 @@ html, body {
 .ticket-label span {
   display: inline-block;
   background: var(--gradient-brand);
-  color: #fff;
+  color: #04070D;
   padding: 2px 7px;
   margin-right: 10px;
   border-radius: 4px;
-  font-weight: 600;
-  box-shadow: 0 0 10px var(--accent-glow);
+  font-weight: 700;
+  box-shadow: 0 0 12px var(--accent-glow);
 }
 .ticket-label em { font-style: normal; opacity: 0.7; }
 
@@ -240,25 +233,25 @@ html, body {
 
 .dropzone {
   cursor: pointer;
-  border: 1.5px dashed var(--line);
+  border: 1.5px dashed var(--line-strong);
   border-radius: var(--radius);
   background: var(--bg-card);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  transition: all 0.35s var(--ease-out);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: border-color 0.3s var(--ease-out), background 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out), transform 0.3s var(--ease-out);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 28px rgba(0, 0, 0, 0.22);
 }
 .dropzone:hover, .dropzone:focus-visible, .dropzone.dragover {
   border-color: var(--accent);
   background: var(--bg-card-hover);
   outline: none;
-  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.25), 0 0 22px var(--accent-glow), 0 0 40px var(--accent-2-glow);
-  transform: translateY(-3px) scale(1.005);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 36px rgba(0, 0, 0, 0.28), 0 0 0 1px var(--accent-glow);
+  transform: translateY(-2px);
 }
 .dropzone.has-file {
   border-style: solid;
   border-color: var(--green);
-  box-shadow: 0 8px 30px rgba(52, 211, 153, 0.18);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 28px rgba(34, 197, 94, 0.14);
 }
 
 .dropzone-inner { padding: 6px; }
@@ -287,7 +280,7 @@ html, body {
 }
 .scan-beam.scanning {
   opacity: 1;
-  animation: sweep 1.4s ease-in-out infinite;
+  animation: sweep 1.3s ease-in-out infinite;
 }
 @keyframes sweep {
   0%   { top: 0%; }
@@ -316,9 +309,9 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  background: rgba(52, 211, 153, 0.15);
+  background: rgba(34, 197, 94, 0.14);
   color: var(--green);
-  border: 1px solid rgba(52, 211, 153, 0.35);
+  border: 1px solid rgba(34, 197, 94, 0.32);
   font-family: var(--font-mono);
   font-size: 13px;
   padding: 8px 14px;
@@ -336,6 +329,7 @@ html, body {
 .file-chip button:hover {
   opacity: 0.7;
 }
+.file-chip[hidden] { display: none; }
 
 .target-role-input {
   width: 100%;
@@ -347,12 +341,12 @@ html, body {
   font-family: var(--font-body);
   font-size: 14px;
   color: var(--ink);
-  transition: all 0.2s ease;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 .target-role-input:focus {
   outline: none;
   border-color: var(--accent);
+  background: var(--bg-card-hover);
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
@@ -375,12 +369,12 @@ textarea#jdInput {
   font-family: var(--font-body);
   font-size: 14px;
   color: var(--ink);
-  transition: all 0.2s ease;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 textarea#jdInput:focus {
   outline: none;
   border-color: var(--accent);
+  background: var(--bg-card-hover);
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
@@ -392,31 +386,31 @@ textarea#jdInput:focus {
   padding: 16px 24px;
   background: var(--gradient-brand);
   background-size: 200% 200%;
-  color: #fff;
+  color: #04070D;
   border: none;
   border-radius: var(--radius);
   font-family: var(--font-body);
   font-weight: 600;
   font-size: 15px;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.3s var(--ease-out), background-position 0.6s ease;
-  box-shadow: 0 4px 20px var(--accent-glow);
+  transition: transform 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out), background-position 0.6s ease;
+  box-shadow: 0 4px 18px var(--accent-glow);
 }
 .scan-btn::before {
   content: "";
   position: absolute;
   top: 0; left: -75%;
   width: 50%; height: 100%;
-  background: linear-gradient(120deg, transparent, rgba(255,255,255,0.35), transparent);
+  background: linear-gradient(120deg, transparent, rgba(255,255,255,0.4), transparent);
   transform: skewX(-20deg);
   transition: left 0.7s ease;
 }
 .scan-btn:hover:not(:disabled) {
   transform: translateY(-2px);
   background-position: 100% 50%;
-  box-shadow: 0 8px 28px var(--accent-glow), 0 0 30px var(--accent-2-glow);
+  box-shadow: 0 10px 28px var(--accent-glow), 0 0 26px var(--accent-2-glow);
 }
 .scan-btn:hover:not(:disabled)::before { left: 125%; }
 .scan-btn:active:not(:disabled) { transform: translateY(0); }
@@ -449,7 +443,7 @@ textarea#jdInput:focus {
   background: var(--gradient-brand-3);
   background-size: 200% 100%;
   opacity: 0.7;
-  animation: brandShift 6s ease-in-out infinite;
+  animation: brandShift 7s ease-in-out infinite;
 }
 @keyframes brandShift {
   0%, 100% { background-position: 0% 50%; }
@@ -474,16 +468,17 @@ textarea#jdInput:focus {
   -webkit-text-fill-color: transparent;
 }
 
-/* Case-file stamp — animates in once a scan resolves */
+/* Verdict badge — animates in once a scan resolves.
+   A clean instrument-style ring rather than a distressed ink stamp. */
 .stamp {
   --stamp-color: var(--green);
   position: absolute;
   top: -14px;
   right: 152px;
-  width: 104px;
-  height: 104px;
+  width: 100px;
+  height: 100px;
   border-radius: 50%;
-  border: 3px solid var(--stamp-color);
+  border: 2px solid var(--stamp-color);
   color: var(--stamp-color);
   display: flex;
   align-items: center;
@@ -491,33 +486,32 @@ textarea#jdInput:focus {
   text-align: center;
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 12.5px;
-  letter-spacing: 0.14em;
+  font-size: 12px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   line-height: 1.3;
   pointer-events: none;
-  transform: rotate(-13deg) scale(0);
+  transform: rotate(-6deg) scale(0);
   opacity: 0;
-  box-shadow: inset 0 0 0 2px var(--stamp-color);
-  background: radial-gradient(circle, rgba(0,0,0,0.08), transparent 70%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--stamp-color) 10%, transparent), transparent 70%);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--stamp-color) 10%, transparent), 0 8px 24px rgba(0, 0, 0, 0.35);
   z-index: 5;
 }
 .stamp::before {
   content: "";
   position: absolute;
-  inset: 8px;
+  inset: 7px;
   border: 1px solid currentColor;
   border-radius: 50%;
-  opacity: 0.55;
+  opacity: 0.4;
 }
 .stamp.show {
-  animation: stampThud 0.7s var(--ease-spring) forwards;
+  animation: stampSettle 0.6s var(--ease-spring) forwards;
 }
-@keyframes stampThud {
-  0%   { transform: rotate(-13deg) scale(2.6); opacity: 0; }
-  50%  { transform: rotate(-13deg) scale(0.9);  opacity: 1; }
-  72%  { transform: rotate(-13deg) scale(1.08); }
-  100% { transform: rotate(-13deg) scale(1);    opacity: 1; }
+@keyframes stampSettle {
+  0%   { transform: rotate(-6deg) scale(1.8); opacity: 0; }
+  55%  { transform: rotate(-6deg) scale(0.96); opacity: 1; }
+  100% { transform: rotate(-6deg) scale(1);    opacity: 1; }
 }
 @media (max-width: 760px) {
   .stamp { display: none; } /* keeps the header from crowding on small screens */
@@ -528,17 +522,17 @@ textarea#jdInput:focus {
   width: 140px;
   height: 140px;
   flex-shrink: 0;
-  filter: drop-shadow(0 0 15px var(--accent-glow));
-  animation: gaugeGlow 3.5s ease-in-out infinite;
+  filter: drop-shadow(0 0 14px var(--accent-glow));
+  animation: gaugeGlow 4s ease-in-out infinite;
 }
 @keyframes gaugeGlow {
-  0%, 100% { filter: drop-shadow(0 0 12px var(--accent-glow)); }
-  50% { filter: drop-shadow(0 0 22px var(--accent-2-glow)); }
+  0%, 100% { filter: drop-shadow(0 0 10px var(--accent-glow)); }
+  50% { filter: drop-shadow(0 0 18px var(--accent-2-glow)); }
 }
 .gauge { width: 140px; height: 140px; transform: rotate(-90deg); }
 .gauge-track {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.05);
+  stroke: rgba(148, 163, 184, 0.1);
   stroke-width: 10;
 }
 .gauge-fill {
@@ -583,23 +577,23 @@ textarea#jdInput:focus {
 }
 .gauge-grade.grade-a {
   color: var(--green);
-  background: rgba(52, 211, 153, 0.16);
+  background: rgba(34, 197, 94, 0.15);
   border: 1px solid var(--green);
 }
 .gauge-grade.grade-b {
   color: var(--amber-deep);
-  background: rgba(245, 166, 35, 0.16);
+  background: rgba(240, 168, 40, 0.15);
   border: 1px solid var(--amber);
 }
 .gauge-grade.grade-c {
   color: var(--amber-deep);
-  background: rgba(245, 166, 35, 0.12);
+  background: rgba(240, 168, 40, 0.11);
   border: 1px solid var(--amber-deep);
 }
 .gauge-grade.grade-d,
 .gauge-grade.grade-f {
   color: var(--coral);
-  background: rgba(255, 107, 122, 0.14);
+  background: rgba(240, 85, 95, 0.14);
   border: 1px solid var(--coral);
 }
 
@@ -620,8 +614,8 @@ textarea#jdInput:focus {
 }
 .subscore:hover {
   transform: translateY(-3px);
-  border-color: rgba(124, 110, 246, 0.4);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25), 0 0 16px var(--accent-glow);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.3), 0 0 14px var(--accent-glow);
 }
 .subscore-label {
   font-family: var(--font-mono);
@@ -657,8 +651,8 @@ textarea#jdInput:focus {
   border-radius: var(--radius);
   padding: 24px;
   overflow: hidden;
-  transition: transform 0.35s var(--ease-out), box-shadow 0.35s var(--ease-out), border-color 0.35s ease, background 0.35s ease, opacity 0.6s var(--ease-out);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  transition: transform 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out), border-color 0.3s ease, background 0.3s ease, opacity 0.6s var(--ease-out);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 24px rgba(0, 0, 0, 0.18);
 }
 .card::before {
   content: "";
@@ -671,10 +665,10 @@ textarea#jdInput:focus {
   transition: transform 0.5s var(--ease-spring);
 }
 .card:hover {
-  border-color: rgba(255, 255, 255, 0.18);
+  border-color: var(--line-strong);
   background: var(--bg-card-hover);
-  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.32), 0 0 22px rgba(124, 110, 246, 0.12);
-  transform: translateY(-5px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 18px 36px rgba(0, 0, 0, 0.28), 0 0 18px var(--accent-glow);
+  transform: translateY(-4px);
 }
 .card:hover::before { transform: scaleX(1); }
 .card.wide { grid-column: 1 / -1; }
@@ -726,10 +720,10 @@ textarea#jdInput:focus {
   font-size: 12.5px;
   padding: 6px 12px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(148, 163, 184, 0.06);
   color: var(--ink);
   border: 1px solid var(--line);
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
   animation: chipPop 0.4s var(--ease-out) backwards;
 }
 .chips .chip:nth-child(1) { animation-delay: 0.02s; }
@@ -745,23 +739,23 @@ textarea#jdInput:focus {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .chip:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(148, 163, 184, 0.12);
   transform: translateY(-2px);
 }
 .chip.match {
-  background: rgba(52, 211, 153, 0.15);
-  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(34, 197, 94, 0.32);
   color: var(--green);
 }
-.chip.match:hover { box-shadow: 0 4px 14px rgba(52, 211, 153, 0.25); }
+.chip.match:hover { box-shadow: 0 4px 14px rgba(34, 197, 94, 0.22); }
 .chip.miss {
-  background: rgba(255, 107, 122, 0.15);
-  border-color: rgba(255, 107, 122, 0.35);
+  background: rgba(240, 85, 95, 0.14);
+  border-color: rgba(240, 85, 95, 0.32);
   color: var(--coral);
 }
-.chip.miss:hover { box-shadow: 0 4px 14px rgba(255, 107, 122, 0.2); }
+.chip.miss:hover { box-shadow: 0 4px 14px rgba(240, 85, 95, 0.2); }
 .density-badge {
-  background: rgba(0,0,0,0.15);
+  background: rgba(0,0,0,0.2);
   color: inherit;
   border-radius: 50%;
   padding: 1px 6px;
@@ -794,7 +788,7 @@ textarea#jdInput:focus {
 }
 .suggestions li::marker {
   font-family: var(--font-mono);
-  color: var(--amber-deep);
+  color: var(--accent);
   font-weight: 600;
 }
 
@@ -823,10 +817,9 @@ textarea#jdInput:focus {
 }
 .section-bar-track {
   height: 8px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(148, 163, 184, 0.08);
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
 }
 .section-bar-fill {
   height: 100%;
@@ -856,25 +849,24 @@ textarea#jdInput:focus {
   font-family: var(--font-mono);
   font-size: 22px;
   font-weight: 600;
-  background: var(--gradient-gold);
+  background: var(--gradient-premium);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 .completeness-bar-track {
   height: 8px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(148, 163, 184, 0.08);
   border-radius: 8px;
   overflow: hidden;
   margin: 14px 0 20px;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
 }
 .completeness-bar-fill {
   height: 100%;
-  background: var(--gradient-gold);
+  background: var(--gradient-premium);
   border-radius: 8px;
   width: 0%;
   transition: width 1.2s var(--ease-out);
-  box-shadow: 0 0 15px rgba(240, 196, 110, 0.45);
+  box-shadow: 0 0 15px var(--accent-2-glow);
 }
 
 /* ATS risk analysis */
@@ -895,17 +887,17 @@ textarea#jdInput:focus {
 }
 .risk-badge.clean,
 .risk-badge.low {
-  background: rgba(52, 211, 153, 0.16);
+  background: rgba(34, 197, 94, 0.15);
   color: var(--green);
   border: 1px solid var(--green);
 }
 .risk-badge.medium {
-  background: rgba(245, 166, 35, 0.16);
+  background: rgba(240, 168, 40, 0.15);
   color: var(--amber-deep);
   border: 1px solid var(--amber);
 }
 .risk-badge.high {
-  background: rgba(255, 107, 122, 0.14);
+  background: rgba(240, 85, 95, 0.14);
   border: 1px solid var(--coral);
   color: var(--coral);
 }
@@ -987,15 +979,15 @@ textarea#jdInput:focus {
   flex-shrink: 0;
 }
 .legend-swatch.weak {
-  background: rgba(226, 88, 79, 0.28);
+  background: rgba(240, 85, 95, 0.26);
   border: 1px solid var(--coral);
 }
 .legend-swatch.keyword {
-  background: rgba(52, 211, 153, 0.22);
+  background: rgba(34, 197, 94, 0.22);
   border: 1px solid var(--green);
 }
 .legend-swatch.missing {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(148, 163, 184, 0.08);
   border: 1px dashed var(--ink-soft);
 }
 .resume-highlight-text {
@@ -1007,24 +999,24 @@ textarea#jdInput:focus {
   font-size: 13.5px;
   line-height: 1.7;
   color: var(--ink);
-  background: rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.22);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 18px 20px;
 }
 .resume-highlight-text mark.hl-weak {
-  background: rgba(226, 88, 79, 0.24);
+  background: rgba(240, 85, 95, 0.22);
   color: var(--ink);
   border-radius: 3px;
   padding: 1px 2px;
-  box-shadow: 0 0 0 1px rgba(226, 88, 79, 0.4);
+  box-shadow: 0 0 0 1px rgba(240, 85, 95, 0.38);
 }
 .resume-highlight-text mark.hl-keyword {
-  background: rgba(52, 211, 153, 0.2);
+  background: rgba(34, 197, 94, 0.2);
   color: var(--ink);
   border-radius: 3px;
   padding: 1px 2px;
-  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.35);
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.35);
 }
 .resume-missing-wrap {
   margin-top: 18px;
@@ -1047,14 +1039,15 @@ textarea#jdInput:focus {
   gap: 16px;
 }
 .bullet-item {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(148, 163, 184, 0.03);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 16px 20px;
-  transition: border-color 0.2s ease;
+  transition: border-color 0.2s ease, background 0.2s ease;
 }
 .bullet-item:hover {
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: var(--line-strong);
+  background: rgba(148, 163, 184, 0.05);
 }
 .bullet-item-head {
   display: flex;
@@ -1068,7 +1061,7 @@ textarea#jdInput:focus {
   letter-spacing: 0.05em;
   padding: 2px 8px;
   border-radius: 3px;
-  background: var(--glass-2);
+  background: rgba(148, 163, 184, 0.08);
   color: var(--ink-soft);
 }
 .bullet-original, .bullet-suggested {
@@ -1090,8 +1083,8 @@ textarea#jdInput:focus {
   height: fit-content;
   margin-top: 2px;
 }
-.bullet-tag.before { background: var(--glass-2); color: var(--ink-soft); }
-.bullet-tag.after { background: rgba(52, 211, 153, 0.16); color: var(--green); }
+.bullet-tag.before { background: rgba(148, 163, 184, 0.08); color: var(--ink-soft); }
+.bullet-tag.after { background: rgba(34, 197, 94, 0.15); color: var(--green); }
 .bullet-notes {
   margin: 8px 0 0;
   padding-left: 18px;
@@ -1114,16 +1107,16 @@ textarea#jdInput:focus {
   align-items: center;
   padding: 20px;
   border-radius: var(--radius);
-  transition: transform 0.35s var(--ease-out), box-shadow 0.35s var(--ease-out);
+  transition: transform 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out);
   min-width: 110px;
   min-height: 90px;
   text-align: center;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 2px 5px rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 .heatmap-block:hover {
-  transform: translateY(-5px) scale(1.02);
-  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.35);
+  transform: translateY(-4px) scale(1.015);
+  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.4);
 }
 .heatmap-label {
   font-family: var(--font-mono);
@@ -1132,14 +1125,14 @@ textarea#jdInput:focus {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin-bottom: 8px;
-  opacity: 0.9;
+  opacity: 0.92;
 }
 .heatmap-score {
   font-family: var(--font-display);
   font-size: 32px;
   font-weight: 700;
   line-height: 1;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.35);
 }
 
 /* Footer */
@@ -1168,12 +1161,12 @@ textarea#jdInput:focus {
   border: 1px solid var(--accent-2);
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.3s var(--ease-out);
+  transition: background 0.25s var(--ease-out), color 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out), transform 0.25s var(--ease-out);
 }
 
 .pdf-btn:hover {
   background: var(--accent-2);
-  color: var(--bg-dark);
+  color: #04070D;
   box-shadow: 0 4px 18px var(--accent-2-glow);
   transform: translateY(-2px);
 }
@@ -1215,7 +1208,7 @@ textarea#jdInput:focus {
   width: 100%;
   height: 250px;
   margin-top: 1rem;
-  animation: chartFadeIn 0.7s var(--ease-out) backwards;
+  animation: chartFadeIn 0.6s var(--ease-out) backwards;
   animation-delay: 0.1s;
 }
 @keyframes chartFadeIn {
@@ -1230,12 +1223,12 @@ textarea#jdInput:focus {
    that only show up in the exported PDF (never on-screen):
 
    1. Cards/chips use translucent rgba() backgrounds designed to sit
-      on top of the dark <body> aurora background. html2pdf only
-      captures the #report element itself, so that dark backdrop is
-      never part of the snapshot — the translucent layers composite
+      on top of the dark <body> background. html2pdf only captures
+      the #report element itself, so that dark backdrop is never
+      part of the snapshot — the translucent layers composite
       against html2canvas's default white canvas instead, washing
       out every card to a pale, low-contrast gray and making the
-      warm parchment ink color nearly invisible on top of it.
+      light ink color nearly invisible on top of it.
    2. Scroll-reveal (.reveal) elements only reach opacity:1 once the
       user has actually scrolled them into view. Anything below the
       fold at the moment "Download PDF Report" is clicked is still
@@ -1246,10 +1239,10 @@ textarea#jdInput:focus {
       past the right edge of a printed Letter-size page.
    ============================================================ */
 body.pdf-exporting {
-  background: var(--bg-dark);
+  background: var(--bg);
 }
 #report.pdf-exporting {
-  background: var(--bg-dark);
+  background: var(--bg);
   padding: 24px;
 }
 .pdf-exporting .reveal {
@@ -1259,7 +1252,7 @@ body.pdf-exporting {
 }
 .pdf-exporting .card,
 .pdf-exporting .subscore {
-  background: #1A1C15 !important; /* solid stand-in for --bg-card, since alpha blending over nothing isn't reliable in the snapshot */
+  background: #121A2C !important; /* solid stand-in for --bg-card, since alpha blending over nothing isn't reliable in the snapshot */
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   transition: none !important;
@@ -1269,7 +1262,7 @@ body.pdf-exporting {
 .pdf-exporting .subscore:hover {
   transform: none !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
-  background: #1A1C15 !important;
+  background: #121A2C !important;
 }
 .pdf-exporting .report-grid,
 .pdf-exporting .jd-columns,
@@ -1316,11 +1309,11 @@ body.pdf-exporting {
   page-break-inside: avoid;
 }
 
-/* --- Case-file stamp fix ---
-   The stamp is normally position:absolute with a fixed right offset,
+/* --- Verdict badge fix ---
+   The badge is normally position:absolute with a fixed right offset,
    tuned for the on-screen viewport width. html2pdf captures the report
    at element.scrollWidth (a different width), so the header's flex items
-   can wrap differently and the stamp's fixed coordinates land on top of
+   can wrap differently and the badge's fixed coordinates land on top of
    the header title instead of beside it. Dropping it back into normal
    flex flow for the export guarantees it can never overlap its
    siblings, regardless of the captured width. */
@@ -1332,7 +1325,7 @@ body.pdf-exporting {
   top: auto !important;
   right: auto !important;
   inset: auto !important;
-  transform: rotate(-8deg) scale(1) !important;
+  transform: rotate(-6deg) scale(1) !important;
   opacity: 1 !important;
   animation: none !important;
   margin: 4px 22px 0 !important;

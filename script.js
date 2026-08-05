@@ -13,7 +13,6 @@ const jdInput = document.getElementById("jdInput");
 const targetRoleInput = document.getElementById("targetRoleInput");
 const errorMsg = document.getElementById("errorMsg");
 const report = document.getElementById("report");
-const downloadPdfBtn = document.getElementById("downloadPdfBtn");
 
 let selectedFile = null;
 
@@ -699,78 +698,7 @@ function animateGauge(score) {
   requestAnimationFrame(tick);
 }
 
-// --- Dashboard & PDF export ---
-
-if (downloadPdfBtn) {
-  downloadPdfBtn.addEventListener("click", async () => {
-    const element = document.getElementById("report");
-    downloadPdfBtn.disabled = true;
-    const originalLabel = downloadPdfBtn.textContent;
-    downloadPdfBtn.textContent = "Preparing PDF...";
-    downloadPdfBtn.style.display = "none";
-
-    // Scroll-reveal elements only reach opacity:1 once actually scrolled
-    // into view — anything below the fold is still faded at click time,
-    // so force everything visible before the snapshot is taken.
-    const revealEls = element.querySelectorAll(".reveal");
-    revealEls.forEach((el) => {
-      el.classList.add("in-view");
-      el.style.transitionDelay = "0s";
-    });
-    document.body.classList.add("pdf-exporting");
-    element.classList.add("pdf-exporting");
-
-    // Let the layout/style changes above actually paint, and give any
-    // still-settling chart animations a moment to finish, before capturing.
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    await new Promise((resolve) => setTimeout(resolve, 200));
-
-    try {
-      await html2pdf()
-        .from(element)
-        .set({
-          margin: 0.4,
-          filename: "Resume-Analysis-Report.pdf",
-          image: { type: "jpeg", quality: 0.98 },
-          html2canvas: {
-            scale: 2,
-            useCORS: true,
-            backgroundColor: "#0A0E17", // matches --bg; without this html2canvas defaults to white and washes out every card
-            windowWidth: element.scrollWidth,
-          },
-          jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
-          // "legacy" and "css" are two separate page-break algorithms; running
-          // both at once is a known cause of extra phantom blank space in
-          // html2pdf output, so "css" alone is used here. Only small, atomic
-          // pieces are listed as avoid — not whole .card containers — so a
-          // long card (e.g. Bullet point rewrites) can flow across a page
-          // break instead of being pushed whole onto the next page and
-          // leaving the rest of the previous page empty.
-          pagebreak: {
-            mode: ["css"],
-            avoid: [
-              ".card.chart-card",
-              ".subscore",
-              ".heatmap-block",
-              ".bullet-item",
-              ".checklist li",
-              ".suggestions li",
-            ],
-          },
-        })
-        .save();
-    } catch (err) {
-      showError("Could not generate the PDF report. Please try again.");
-    } finally {
-      document.body.classList.remove("pdf-exporting");
-      element.classList.remove("pdf-exporting");
-      revealEls.forEach((el) => { el.style.transitionDelay = ""; });
-      downloadPdfBtn.disabled = false;
-      downloadPdfBtn.textContent = originalLabel;
-      downloadPdfBtn.style.display = "inline-block";
-    }
-  });
-}
+// --- Dashboard ---
 
 let radarChartInstance = null;
 let barChartInstance = null;

@@ -288,10 +288,8 @@ This generates a fresh `ats_model.joblib` file using the synthetic ATS training 
 
 * 🌍 Multi-language resume support
 * 📑 Resume version comparison
-* ☁️ Optional cloud deployment
-* 📊 Historical scan analytics
-* 🧪 Real-world ATS outcome training data
-* 🔐 User authentication & saved reports
+* ☁️ Optional cloud deployment 
+* 🧪 Real-world ATS outcome training data 
 
 ---
 

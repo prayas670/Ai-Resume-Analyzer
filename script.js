@@ -249,9 +249,9 @@ function renderDensityChips(containerId, keywords, densityMap, isMatch) {
 }
 
 function scoreColor(score) {
-  if (score < 50) return "#F0555F"; // coral
-  if (score < 75) return "#F0A828"; // amber
-  return "#22C55E"; // green
+  if (score < 50) return "#E0576B"; // coral
+  if (score < 75) return "#DE9A34"; // amber
+  return "#1FAE78"; // green
 }
 
 // --- Section-wise score ---
@@ -289,11 +289,11 @@ function stampVerdict(grade) {
   if (!stamp || !text) return;
   const letter = grade[0];
   let verdict = "REVIEW";
-  let color = "#F0A828"; // amber
-  if (letter === "A") { verdict = "CLEARED"; color = "#22C55E"; }
-  else if (letter === "B") { verdict = "STRONG"; color = "#2BD9B9"; }
-  else if (letter === "C") { verdict = "REVIEW"; color = "#F0A828"; }
-  else { verdict = "FLAGGED"; color = "#F0555F"; }
+  let color = "#DE9A34"; // amber
+  if (letter === "A") { verdict = "CLEARED"; color = "#1FAE78"; }
+  else if (letter === "B") { verdict = "STRONG"; color = "#14B8A6"; }
+  else if (letter === "C") { verdict = "REVIEW"; color = "#DE9A34"; }
+  else { verdict = "FLAGGED"; color = "#E0576B"; }
   text.textContent = verdict;
   stamp.style.setProperty("--stamp-color", color);
   stamp.classList.remove("show");
@@ -672,9 +672,9 @@ function animateGauge(score) {
   const circumference = 377; // 2 * PI * 60, matches stroke-dasharray in CSS
   const fill = document.getElementById("gaugeFill");
   const offset = circumference - (score / 100) * circumference;
-  let color = "#22C55E"; // green
-  if (score < 50) color = "#F0555F"; // coral
-  else if (score < 75) color = "#F0A828"; // amber
+  let color = "#1FAE78"; // green
+  if (score < 50) color = "#E0576B"; // coral
+  else if (score < 75) color = "#DE9A34"; // amber
   fill.style.stroke = color;
 
   fill.style.transition = "none";
@@ -705,10 +705,10 @@ let barChartInstance = null;
 
 // Shared tooltip styling for all charts.
 const CHART_TOOLTIP_BASE = {
-  backgroundColor: 'rgba(10, 14, 23, 0.94)',
-  titleColor: '#EDF1F8',
-  bodyColor: '#8993AC',
-  borderColor: 'rgba(76, 130, 255, 0.35)',
+  backgroundColor: 'rgba(11, 17, 32, 0.94)',
+  titleColor: '#F5F7FC',
+  bodyColor: '#9AA6C7',
+  borderColor: 'rgba(91, 114, 242, 0.35)',
   borderWidth: 1,
   padding: 10,
   cornerRadius: 10,
@@ -729,8 +729,8 @@ function renderDashboard(data) {
     dataRadar.push(data.jd_match.similarity);
   }
   const radarFill = ctxRadar.createLinearGradient(0, 0, 0, 260);
-  radarFill.addColorStop(0, 'rgba(76, 130, 255, 0.35)');
-  radarFill.addColorStop(1, 'rgba(43, 217, 185, 0.06)');
+  radarFill.addColorStop(0, 'rgba(91, 114, 242, 0.35)');
+  radarFill.addColorStop(1, 'rgba(20, 184, 166, 0.06)');
   radarChartInstance = new Chart(ctxRadar, {
     type: 'radar',
     data: {
@@ -739,15 +739,15 @@ function renderDashboard(data) {
         label: 'Score',
         data: dataRadar,
         backgroundColor: radarFill,
-        borderColor: '#4C82FF',
+        borderColor: '#5B72F2',
         borderWidth: 2.5,
-        pointBackgroundColor: '#0A0E17',
-        pointBorderColor: '#2BD9B9',
+        pointBackgroundColor: '#0B1120',
+        pointBorderColor: '#14B8A6',
         pointBorderWidth: 2,
         pointRadius: 5,
         pointHoverRadius: 7,
-        pointHoverBackgroundColor: '#2BD9B9',
-        pointHoverBorderColor: '#EDF1F8',
+        pointHoverBackgroundColor: '#14B8A6',
+        pointHoverBorderColor: '#F5F7FC',
         tension: 0.15,
       }]
     },
@@ -758,10 +758,10 @@ function renderDashboard(data) {
       scales: {
         r: {
           min: 0, max: 100,
-          angleLines: { color: 'rgba(148,163,184,0.14)' },
-          grid: { color: 'rgba(148,163,184,0.14)', circular: true },
-          pointLabels: { color: '#8993AC', font: { family: "'Inter', sans-serif", size: 12, weight: '500' } },
-          ticks: { color: '#5C6478', backdropColor: 'transparent', stepSize: 25 }
+          angleLines: { color: 'rgba(154,166,199,0.16)' },
+          grid: { color: 'rgba(154,166,199,0.16)', circular: true },
+          pointLabels: { color: '#9AA6C7', font: { family: "'Inter', sans-serif", size: 12, weight: '500' } },
+          ticks: { color: '#5E6A90', backdropColor: 'transparent', stepSize: 25 }
         }
       },
       plugins: {
@@ -779,11 +779,11 @@ function renderDashboard(data) {
     dataBar.push(s.score || 0);
   });
   const barFill = ctxBar.createLinearGradient(0, 0, 0, 260);
-  barFill.addColorStop(0, '#2BD9B9');
-  barFill.addColorStop(1, '#4C82FF');
+  barFill.addColorStop(0, '#14B8A6');
+  barFill.addColorStop(1, '#5B72F2');
   const barHoverFill = ctxBar.createLinearGradient(0, 0, 0, 260);
-  barHoverFill.addColorStop(0, '#5FE8CE');
-  barHoverFill.addColorStop(1, '#7C9CFF');
+  barHoverFill.addColorStop(0, '#4FD6C4');
+  barHoverFill.addColorStop(1, '#8DA0FA');
   barChartInstance = new Chart(ctxBar, {
     type: 'bar',
     data: {
@@ -805,14 +805,14 @@ function renderDashboard(data) {
       scales: {
         y: {
           beginAtZero: true, max: 100,
-          grid: { color: 'rgba(148,163,184,0.10)' },
+          grid: { color: 'rgba(154,166,199,0.12)' },
           border: { display: false },
-          ticks: { color: '#5C6478', font: { size: 11 } }
+          ticks: { color: '#5E6A90', font: { size: 11 } }
         },
         x: {
           grid: { display: false },
           border: { display: false },
-          ticks: { color: '#8993AC', font: { family: "'Inter', sans-serif", size: 11.5, weight: '500' } }
+          ticks: { color: '#9AA6C7', font: { family: "'Inter', sans-serif", size: 11.5, weight: '500' } }
         }
       },
       plugins: {
@@ -830,11 +830,11 @@ function renderSkillGap(matchedList, missingList) {
   const matchedCount = matchedList ? matchedList.length : 0;
   const missingCount = missingList ? missingList.length : 0;
   const matchedFill = ctx.createLinearGradient(0, 0, 0, 200);
-  matchedFill.addColorStop(0, '#4ADE80');
-  matchedFill.addColorStop(1, '#22C55E');
+  matchedFill.addColorStop(0, '#4FCE9C');
+  matchedFill.addColorStop(1, '#1FAE78');
   const missingFill = ctx.createLinearGradient(0, 0, 0, 200);
-  missingFill.addColorStop(0, '#F5858D');
-  missingFill.addColorStop(1, '#F0555F');
+  missingFill.addColorStop(0, '#EE8A99');
+  missingFill.addColorStop(1, '#E0576B');
 
   // Shows the match % in the doughnut hole.
   const centerTextPlugin = {
@@ -850,10 +850,10 @@ function renderSkillGap(matchedList, missingList) {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.font = "700 26px 'Outfit', sans-serif";
-      ctx.fillStyle = '#EDF1F8';
+      ctx.fillStyle = '#F5F7FC';
       ctx.fillText(`${pct}%`, cx, cy - 8);
       ctx.font = "600 10.5px 'JetBrains Mono', monospace";
-      ctx.fillStyle = '#8993AC';
+      ctx.fillStyle = '#9AA6C7';
       ctx.fillText('MATCHED', cx, cy + 14);
       ctx.restore();
     }
@@ -865,7 +865,7 @@ function renderSkillGap(matchedList, missingList) {
       datasets: [{
         data: [matchedCount, missingCount],
         backgroundColor: [matchedFill, missingFill],
-        borderColor: '#0A0E17',
+        borderColor: '#0B1120',
         borderWidth: 3,
         hoverOffset: 10,
         spacing: 2,
@@ -879,7 +879,7 @@ function renderSkillGap(matchedList, missingList) {
       plugins: {
         legend: {
           position: 'bottom',
-          labels: { color: '#8993AC', font: { family: "'Inter', sans-serif", size: 12 }, usePointStyle: true, pointStyle: 'circle', padding: 16 }
+          labels: { color: '#9AA6C7', font: { family: "'Inter', sans-serif", size: 12 }, usePointStyle: true, pointStyle: 'circle', padding: 16 }
         },
         tooltip: CHART_TOOLTIP_BASE
       }

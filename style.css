@@ -1,46 +1,58 @@
 /* ============================================================
-   Design tokens — "Instrument Panel": deep graphite-navy base,
-   signal-blue + circuit-mint as the two-color brand system.
-   Semantic status colors (green/amber/coral) are kept separate
-   from the brand accents so pass/fail states always read clearly.
+   Design tokens — "Glass Ledger": a deep indigo-navy base with
+   genuine frosted-glass panels floating over a soft indigo /
+   teal / violet aurora. Jewel-toned status colors (emerald,
+   gold, rose) read as an audit instrument, not a neon HUD.
    ============================================================ */
 :root {
-  --bg: #0A0E17;                  /* deep graphite-navy */
-  --bg-2: #0D1424;
-  --bg-card: rgba(148, 163, 184, 0.045);
-  --bg-card-hover: rgba(148, 163, 184, 0.08);
-  --glass: rgba(7, 10, 17, 0.82);
+  --bg: #0B1120;                  /* deep indigo-navy */
+  --bg-2: #141C36;
+  --bg-card: rgba(255, 255, 255, 0.055);      /* frosted glass fill */
+  --bg-card-hover: rgba(255, 255, 255, 0.095);
+  --glass: rgba(9, 13, 26, 0.58);             /* topbar glass */
 
-  --ink: #EDF1F8;                 /* crisp cool white */
-  --ink-soft: #8993AC;            /* muted slate */
-  --ink-faint: #5C6478;           /* dim slate, chart ticks etc. */
+  --ink: #F5F7FC;                 /* crisp cool white */
+  --ink-soft: #9AA6C7;            /* muted periwinkle-slate */
+  --ink-faint: #5E6A90;           /* dim slate, chart ticks etc. */
+  --ink-soft-rgb: 154, 166, 199;
 
-  --accent: #4C82FF;              /* signal blue — primary */
-  --accent-2: #2BD9B9;            /* circuit mint — secondary */
-  --accent-glow: rgba(76, 130, 255, 0.38);
-  --accent-2-glow: rgba(43, 217, 185, 0.30);
-  --accent-deep: #3563D6;
+  --accent: #5B72F2;              /* indigo — primary */
+  --accent-2: #14B8A6;            /* teal — secondary */
+  --accent-rgb: 91, 114, 242;
+  --accent-2-rgb: 20, 184, 166;
+  --accent-glow: rgba(91, 114, 242, 0.34);
+  --accent-2-glow: rgba(20, 184, 166, 0.26);
+  --accent-deep: #4355D9;
+  --accent-light: #8DA0FA;
+  --violet: #8B7CF0;              /* third ambient hue, used sparingly */
 
-  --amber: #F0A828;
-  --amber-deep: #C9860F;
-  --coral: #F0555F;
-  --green: #22C55E;
+  --amber: #DE9A34;
+  --amber-deep: #A66A16;
+  --amber-rgb: 222, 154, 52;
+  --coral: #E0576B;
+  --coral-rgb: 224, 87, 107;
+  --green: #1FAE78;
+  --green-rgb: 31, 174, 120;
 
-  --line: rgba(148, 163, 184, 0.14);
-  --line-strong: rgba(148, 163, 184, 0.24);
+  --line: rgba(255, 255, 255, 0.12);
+  --line-strong: rgba(255, 255, 255, 0.24);
+  --sheen: rgba(255, 255, 255, 0.26);
 
   --gradient-brand: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
-  --gradient-brand-3: linear-gradient(120deg, var(--accent) 0%, #7C9CFF 45%, var(--accent-2) 100%);
+  --gradient-brand-3: linear-gradient(120deg, var(--accent) 0%, var(--accent-light) 45%, var(--accent-2) 100%);
   --gradient-premium: linear-gradient(135deg, var(--accent-2) 0%, var(--accent) 100%);
 
   --font-display: 'Outfit', sans-serif;
   --font-body: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Courier New', monospace;
 
-  --radius: 12px;
-  --radius-sm: 8px;
+  --radius: 18px;
+  --radius-sm: 12px;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.42, 0.64, 1);
+
+  --glass-blur: blur(22px) saturate(170%);
+  --glass-blur-sm: blur(14px) saturate(160%);
 }
 
 * { box-sizing: border-box; }
@@ -66,37 +78,45 @@ html, body {
   * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
 
-/* Ambient background — two soft, slow-drifting gradient fields.
-   Kept quiet and low-contrast so it reads as atmosphere, not decor. */
+/* Ambient background — three soft, slow-drifting gradient fields,
+   pinned to the viewport so every glass panel — even ones deep in
+   the scroll — sits over genuine color, not a flat void. Two carry
+   the brand (indigo/teal); a third, quieter violet keeps the lower
+   viewport from reading empty without competing for attention. */
 .aurora-bg {
   position: fixed;
   inset: 0;
   z-index: -2;
   overflow: hidden;
-  background: radial-gradient(ellipse at top, var(--bg-2) 0%, var(--bg) 65%);
+  background: radial-gradient(ellipse at top, var(--bg-2) 0%, var(--bg) 68%);
 }
 .aurora-bg span {
   position: absolute;
   border-radius: 50%;
-  filter: blur(120px);
-  opacity: 0.22;
+  filter: blur(130px);
   will-change: transform;
 }
 .aurora-bg span:nth-child(1) {
   width: 640px; height: 640px;
   top: -220px; left: -160px;
   background: var(--accent);
+  opacity: 0.30;
   animation: driftA 34s ease-in-out infinite;
 }
 .aurora-bg span:nth-child(2) {
   width: 560px; height: 560px;
   top: 5%; right: -200px;
   background: var(--accent-2);
-  opacity: 0.16;
+  opacity: 0.24;
   animation: driftB 40s ease-in-out infinite;
 }
 .aurora-bg span:nth-child(3) {
-  display: none; /* two fields read as considered; three read as busy */
+  display: block;
+  width: 620px; height: 620px;
+  bottom: -260px; left: 30%;
+  background: var(--violet);
+  opacity: 0.15;
+  animation: driftC 46s ease-in-out infinite;
 }
 @keyframes driftA {
   0%, 100% { transform: translate(0, 0) scale(1); }
@@ -106,6 +126,10 @@ html, body {
   0%, 100% { transform: translate(0, 0) scale(1); }
   50% { transform: translate(-60px, 50px) scale(1.05); }
 }
+@keyframes driftC {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(40px, -40px) scale(1.06); }
+}
 
 /* Faint technical grid — a quiet nod to "scan lines" without literal texture */
 .scanline-overlay {
@@ -114,10 +138,10 @@ html, body {
   pointer-events: none;
   z-index: -1;
   background-image:
-    linear-gradient(rgba(148, 163, 184, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.035) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
   background-size: 34px 34px;
-  opacity: 0.5;
+  opacity: 0.6;
   -webkit-mask-image: radial-gradient(ellipse at top, #000 0%, transparent 75%);
   mask-image: radial-gradient(ellipse at top, #000 0%, transparent 75%);
 }
@@ -153,11 +177,12 @@ html, body {
   border-bottom: 1px solid var(--line);
   padding: 22px 0;
   background: var(--glass);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   position: sticky;
   top: 0;
   z-index: 100;
+  box-shadow: 0 1px 0 var(--sheen) inset, 0 12px 30px rgba(5, 8, 16, 0.28);
 }
 .topbar-inner {
   display: flex;
@@ -211,7 +236,7 @@ html, body {
 .ticket-label span {
   display: inline-block;
   background: var(--gradient-brand);
-  color: #04070D;
+  color: #FFFFFF;
   padding: 2px 7px;
   margin-right: 10px;
   border-radius: 4px;
@@ -236,22 +261,22 @@ html, body {
   border: 1.5px dashed var(--line-strong);
   border-radius: var(--radius);
   background: var(--bg-card);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   transition: border-color 0.3s var(--ease-out), background 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out), transform 0.3s var(--ease-out);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 28px rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 1px 0 var(--sheen), 0 1px 2px rgba(5, 8, 16, 0.4), 0 16px 34px rgba(5, 8, 16, 0.26);
 }
 .dropzone:hover, .dropzone:focus-visible, .dropzone.dragover {
   border-color: var(--accent);
   background: var(--bg-card-hover);
   outline: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 36px rgba(0, 0, 0, 0.28), 0 0 0 1px var(--accent-glow);
+  box-shadow: inset 0 1px 0 var(--sheen), 0 1px 2px rgba(5, 8, 16, 0.4), 0 20px 42px rgba(5, 8, 16, 0.3), 0 0 0 1px var(--accent-glow);
   transform: translateY(-2px);
 }
 .dropzone.has-file {
   border-style: solid;
   border-color: var(--green);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 28px rgba(34, 197, 94, 0.14);
+  box-shadow: inset 0 1px 0 var(--sheen), 0 1px 2px rgba(5, 8, 16, 0.4), 0 14px 30px rgba(var(--green-rgb), 0.16);
 }
 
 .dropzone-inner { padding: 6px; }
@@ -275,12 +300,12 @@ html, body {
   top: -10%;
   height: 2px;
   background: linear-gradient(to right, transparent, var(--accent), var(--accent-2), transparent);
-  box-shadow: 0 0 20px 4px var(--accent-glow);
+  box-shadow: 0 0 16px 3px var(--accent-glow);
   opacity: 0;
 }
 .scan-beam.scanning {
   opacity: 1;
-  animation: sweep 1.3s ease-in-out infinite;
+  animation: sweep 1.5s ease-in-out infinite;
 }
 @keyframes sweep {
   0%   { top: 0%; }
@@ -309,9 +334,11 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  background: rgba(34, 197, 94, 0.14);
+  background: rgba(var(--green-rgb), 0.16);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
   color: var(--green);
-  border: 1px solid rgba(34, 197, 94, 0.32);
+  border: 1px solid rgba(var(--green-rgb), 0.34);
   font-family: var(--font-mono);
   font-size: 13px;
   padding: 8px 14px;
@@ -336,18 +363,20 @@ html, body {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--bg-card);
-  backdrop-filter: blur(8px);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
   padding: 12px 16px;
   font-family: var(--font-body);
   font-size: 14px;
   color: var(--ink);
+  box-shadow: inset 0 1px 0 var(--sheen);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 .target-role-input:focus {
   outline: none;
   border-color: var(--accent);
   background: var(--bg-card-hover);
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  box-shadow: inset 0 1px 0 var(--sheen), 0 0 0 3px var(--accent-glow);
 }
 
 .jd-or-divider {
@@ -364,18 +393,20 @@ textarea#jdInput {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--bg-card);
-  backdrop-filter: blur(8px);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
   padding: 16px;
   font-family: var(--font-body);
   font-size: 14px;
   color: var(--ink);
+  box-shadow: inset 0 1px 0 var(--sheen);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 textarea#jdInput:focus {
   outline: none;
   border-color: var(--accent);
   background: var(--bg-card-hover);
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  box-shadow: inset 0 1px 0 var(--sheen), 0 0 0 3px var(--accent-glow);
 }
 
 .scan-btn {
@@ -386,7 +417,7 @@ textarea#jdInput:focus {
   padding: 16px 24px;
   background: var(--gradient-brand);
   background-size: 200% 200%;
-  color: #04070D;
+  color: #FFFFFF;
   border: none;
   border-radius: var(--radius);
   font-family: var(--font-body);
@@ -469,7 +500,7 @@ textarea#jdInput:focus {
 }
 
 /* Verdict badge — animates in once a scan resolves.
-   A clean instrument-style ring rather than a distressed ink stamp. */
+   A glass medallion rather than a distressed ink stamp. */
 .stamp {
   --stamp-color: var(--green);
   position: absolute;
@@ -478,7 +509,7 @@ textarea#jdInput:focus {
   width: 100px;
   height: 100px;
   border-radius: 50%;
-  border: 2px solid var(--stamp-color);
+  border: 1.5px solid var(--stamp-color);
   color: var(--stamp-color);
   display: flex;
   align-items: center;
@@ -493,8 +524,10 @@ textarea#jdInput:focus {
   pointer-events: none;
   transform: rotate(-6deg) scale(0);
   opacity: 0;
-  background: radial-gradient(circle, color-mix(in srgb, var(--stamp-color) 10%, transparent), transparent 70%);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--stamp-color) 10%, transparent), 0 8px 24px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  background: radial-gradient(circle, color-mix(in srgb, var(--stamp-color) 16%, transparent), color-mix(in srgb, var(--stamp-color) 4%, transparent) 70%);
+  box-shadow: inset 0 1px 0 var(--sheen), 0 0 0 4px color-mix(in srgb, var(--stamp-color) 12%, transparent), 0 10px 26px rgba(5, 8, 16, 0.4);
   z-index: 5;
 }
 .stamp::before {
@@ -503,7 +536,7 @@ textarea#jdInput:focus {
   inset: 7px;
   border: 1px solid currentColor;
   border-radius: 50%;
-  opacity: 0.4;
+  opacity: 0.35;
 }
 .stamp.show {
   animation: stampSettle 0.6s var(--ease-spring) forwards;
@@ -532,7 +565,7 @@ textarea#jdInput:focus {
 .gauge { width: 140px; height: 140px; transform: rotate(-90deg); }
 .gauge-track {
   fill: none;
-  stroke: rgba(148, 163, 184, 0.1);
+  stroke: rgba(var(--ink-soft-rgb), 0.14);
   stroke-width: 10;
 }
 .gauge-fill {
@@ -577,23 +610,23 @@ textarea#jdInput:focus {
 }
 .gauge-grade.grade-a {
   color: var(--green);
-  background: rgba(34, 197, 94, 0.15);
+  background: rgba(var(--green-rgb), 0.16);
   border: 1px solid var(--green);
 }
 .gauge-grade.grade-b {
-  color: var(--amber-deep);
-  background: rgba(240, 168, 40, 0.15);
-  border: 1px solid var(--amber);
+  color: var(--accent-2);
+  background: rgba(var(--accent-2-rgb), 0.16);
+  border: 1px solid var(--accent-2);
 }
 .gauge-grade.grade-c {
   color: var(--amber-deep);
-  background: rgba(240, 168, 40, 0.11);
-  border: 1px solid var(--amber-deep);
+  background: rgba(var(--amber-rgb), 0.15);
+  border: 1px solid var(--amber);
 }
 .gauge-grade.grade-d,
 .gauge-grade.grade-f {
   color: var(--coral);
-  background: rgba(240, 85, 95, 0.14);
+  background: rgba(var(--coral-rgb), 0.16);
   border: 1px solid var(--coral);
 }
 
@@ -605,17 +638,18 @@ textarea#jdInput:focus {
 }
 .subscore {
   background: var(--bg-card);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 16px;
+  box-shadow: inset 0 1px 0 var(--sheen);
   transition: transform 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out), border-color 0.3s ease, opacity 0.6s var(--ease-out);
 }
 .subscore:hover {
   transform: translateY(-3px);
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.3), 0 0 14px var(--accent-glow);
+  box-shadow: inset 0 1px 0 var(--sheen), 0 14px 30px rgba(5, 8, 16, 0.32), 0 0 16px var(--accent-glow);
 }
 .subscore-label {
   font-family: var(--font-mono);
@@ -645,14 +679,14 @@ textarea#jdInput:focus {
 .card {
   position: relative;
   background: var(--bg-card);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 24px;
   overflow: hidden;
   transition: transform 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out), border-color 0.3s ease, background 0.3s ease, opacity 0.6s var(--ease-out);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 24px rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 1px 0 var(--sheen), 0 1px 2px rgba(5, 8, 16, 0.4), 0 14px 30px rgba(5, 8, 16, 0.22);
 }
 .card::before {
   content: "";
@@ -667,7 +701,7 @@ textarea#jdInput:focus {
 .card:hover {
   border-color: var(--line-strong);
   background: var(--bg-card-hover);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 18px 36px rgba(0, 0, 0, 0.28), 0 0 18px var(--accent-glow);
+  box-shadow: inset 0 1px 0 var(--sheen), 0 1px 2px rgba(5, 8, 16, 0.4), 0 22px 44px rgba(5, 8, 16, 0.3), 0 0 20px var(--accent-glow);
   transform: translateY(-4px);
 }
 .card:hover::before { transform: scaleX(1); }
@@ -720,7 +754,9 @@ textarea#jdInput:focus {
   font-size: 12.5px;
   padding: 6px 12px;
   border-radius: 6px;
-  background: rgba(148, 163, 184, 0.06);
+  background: rgba(var(--ink-soft-rgb), 0.08);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
   color: var(--ink);
   border: 1px solid var(--line);
   transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
@@ -739,21 +775,21 @@ textarea#jdInput:focus {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .chip:hover {
-  background: rgba(148, 163, 184, 0.12);
+  background: rgba(var(--ink-soft-rgb), 0.14);
   transform: translateY(-2px);
 }
 .chip.match {
-  background: rgba(34, 197, 94, 0.14);
-  border-color: rgba(34, 197, 94, 0.32);
+  background: rgba(var(--green-rgb), 0.16);
+  border-color: rgba(var(--green-rgb), 0.36);
   color: var(--green);
 }
-.chip.match:hover { box-shadow: 0 4px 14px rgba(34, 197, 94, 0.22); }
+.chip.match:hover { box-shadow: 0 4px 14px rgba(var(--green-rgb), 0.24); }
 .chip.miss {
-  background: rgba(240, 85, 95, 0.14);
-  border-color: rgba(240, 85, 95, 0.32);
+  background: rgba(var(--coral-rgb), 0.16);
+  border-color: rgba(var(--coral-rgb), 0.36);
   color: var(--coral);
 }
-.chip.miss:hover { box-shadow: 0 4px 14px rgba(240, 85, 95, 0.2); }
+.chip.miss:hover { box-shadow: 0 4px 14px rgba(var(--coral-rgb), 0.22); }
 .density-badge {
   background: rgba(0,0,0,0.2);
   color: inherit;
@@ -817,7 +853,7 @@ textarea#jdInput:focus {
 }
 .section-bar-track {
   height: 8px;
-  background: rgba(148, 163, 184, 0.08);
+  background: rgba(var(--ink-soft-rgb), 0.12);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -855,7 +891,7 @@ textarea#jdInput:focus {
 }
 .completeness-bar-track {
   height: 8px;
-  background: rgba(148, 163, 184, 0.08);
+  background: rgba(var(--ink-soft-rgb), 0.12);
   border-radius: 8px;
   overflow: hidden;
   margin: 14px 0 20px;
@@ -887,17 +923,17 @@ textarea#jdInput:focus {
 }
 .risk-badge.clean,
 .risk-badge.low {
-  background: rgba(34, 197, 94, 0.15);
+  background: rgba(var(--green-rgb), 0.17);
   color: var(--green);
   border: 1px solid var(--green);
 }
 .risk-badge.medium {
-  background: rgba(240, 168, 40, 0.15);
+  background: rgba(var(--amber-rgb), 0.16);
   color: var(--amber-deep);
   border: 1px solid var(--amber);
 }
 .risk-badge.high {
-  background: rgba(240, 85, 95, 0.14);
+  background: rgba(var(--coral-rgb), 0.16);
   border: 1px solid var(--coral);
   color: var(--coral);
 }
@@ -979,15 +1015,15 @@ textarea#jdInput:focus {
   flex-shrink: 0;
 }
 .legend-swatch.weak {
-  background: rgba(240, 85, 95, 0.26);
+  background: rgba(var(--coral-rgb), 0.28);
   border: 1px solid var(--coral);
 }
 .legend-swatch.keyword {
-  background: rgba(34, 197, 94, 0.22);
+  background: rgba(var(--green-rgb), 0.24);
   border: 1px solid var(--green);
 }
 .legend-swatch.missing {
-  background: rgba(148, 163, 184, 0.08);
+  background: rgba(var(--ink-soft-rgb), 0.08);
   border: 1px dashed var(--ink-soft);
 }
 .resume-highlight-text {
@@ -999,24 +1035,26 @@ textarea#jdInput:focus {
   font-size: 13.5px;
   line-height: 1.7;
   color: var(--ink);
-  background: rgba(0, 0, 0, 0.22);
+  background: rgba(5, 8, 16, 0.28);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 18px 20px;
 }
 .resume-highlight-text mark.hl-weak {
-  background: rgba(240, 85, 95, 0.22);
+  background: rgba(var(--coral-rgb), 0.24);
   color: var(--ink);
   border-radius: 3px;
   padding: 1px 2px;
-  box-shadow: 0 0 0 1px rgba(240, 85, 95, 0.38);
+  box-shadow: 0 0 0 1px rgba(var(--coral-rgb), 0.4);
 }
 .resume-highlight-text mark.hl-keyword {
-  background: rgba(34, 197, 94, 0.2);
+  background: rgba(var(--green-rgb), 0.22);
   color: var(--ink);
   border-radius: 3px;
   padding: 1px 2px;
-  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.35);
+  box-shadow: 0 0 0 1px rgba(var(--green-rgb), 0.38);
 }
 .resume-missing-wrap {
   margin-top: 18px;
@@ -1039,7 +1077,7 @@ textarea#jdInput:focus {
   gap: 16px;
 }
 .bullet-item {
-  background: rgba(148, 163, 184, 0.03);
+  background: rgba(var(--ink-soft-rgb), 0.035);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 16px 20px;
@@ -1047,7 +1085,7 @@ textarea#jdInput:focus {
 }
 .bullet-item:hover {
   border-color: var(--line-strong);
-  background: rgba(148, 163, 184, 0.05);
+  background: rgba(var(--ink-soft-rgb), 0.06);
 }
 .bullet-item-head {
   display: flex;
@@ -1061,7 +1099,7 @@ textarea#jdInput:focus {
   letter-spacing: 0.05em;
   padding: 2px 8px;
   border-radius: 3px;
-  background: rgba(148, 163, 184, 0.08);
+  background: rgba(var(--ink-soft-rgb), 0.1);
   color: var(--ink-soft);
 }
 .bullet-original, .bullet-suggested {
@@ -1083,8 +1121,8 @@ textarea#jdInput:focus {
   height: fit-content;
   margin-top: 2px;
 }
-.bullet-tag.before { background: rgba(148, 163, 184, 0.08); color: var(--ink-soft); }
-.bullet-tag.after { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+.bullet-tag.before { background: rgba(var(--ink-soft-rgb), 0.1); color: var(--ink-soft); }
+.bullet-tag.after { background: rgba(var(--green-rgb), 0.17); color: var(--green); }
 .bullet-notes {
   margin: 8px 0 0;
   padding-left: 18px;
@@ -1111,12 +1149,12 @@ textarea#jdInput:focus {
   min-width: 110px;
   min-height: 90px;
   text-align: center;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 .heatmap-block:hover {
   transform: translateY(-4px) scale(1.015);
-  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 16px 30px rgba(5, 8, 16, 0.42);
 }
 .heatmap-label {
   font-family: var(--font-mono);
@@ -1193,5 +1231,3 @@ textarea#jdInput:focus {
   from { opacity: 0; transform: translateY(10px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
-
-

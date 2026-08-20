@@ -1,312 +1,189 @@
-# 🚀 SCANLINE — AI Resume Analyzer
+# SCANLINE — AI Resume Analyzer
 
-![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python)
-![Flask](https://img.shields.io/badge/Flask-3.0-black?logo=flask)
-![Scikit-Learn](https://img.shields.io/badge/scikit--learn-ML-orange?logo=scikitlearn)
-![XGBoost](https://img.shields.io/badge/XGBoost-ATS%20Scoring-green)
-![spaCy](https://img.shields.io/badge/spaCy-NLP-09A3D5?logo=spacy)
+A resume analyzer with an HTML/CSS/JS frontend and a Python (Flask) backend.
+It scores a resume for ATS-friendliness, content quality, and skill coverage,
+and — if you paste in a job description — a keyword/similarity match score
+against that specific role.
 
-**SCANLINE** is a modern **AI-powered Resume Analyzer** that evaluates resumes for **ATS compatibility, content quality, structure, and skill coverage**.
+**No API required.** The scoring engine runs entirely locally using
+`scikit-learn` (TF-IDF + cosine similarity) and regex/rule-based NLP —
+there's nothing to sign up for and no API key needed to use the app.
 
-Built with a **Flask backend** and a **responsive HTML/CSS/JavaScript frontend**, the entire scoring pipeline runs **locally** using **Scikit-Learn, spaCy, Sentence-BERT, and XGBoost** — **no API keys, subscriptions, or external AI services required**.
+## Project structure
 
----
+All files live together in one folder:
 
-## ✨ Features
-
-* 📄 **Upload PDF, DOCX, or TXT resumes**
-* 🤖 **AI-powered ATS scoring**
-* 📊 **Section-wise score breakdown**
-* 🎯 **Job Description (JD) similarity matching**
-* 🧠 **Semantic matching with Sentence-BERT**
-* 🏷️ **Skill extraction and entity recognition with spaCy**
-* ⚡ **ML-based ATS pass prediction using XGBoost**
-* 🧾 **Resume completeness checklist**
-* 🔍 **Highlighted weak sentences and matched keywords**
-* ♻️ **Duplicate content detection**
-* ✍️ **Automatic bullet-point rewrite suggestions**
-* 🎨 **Modern dashboard UI with charts and visual analytics**
-
----
-
-## 🖼️ Demo Preview
-
-> Upload a resume → Run the scan → Get a detailed ATS-style report with actionable improvements.
-
-The report includes:
-
-* Overall ATS score
-* Structure score
-* Content quality score
-* Skills coverage score
-* JD similarity score
-* ATS risk level
-* Extracted profile information
-* Improvement suggestions
-
----
-
-## 🏗️ Project Structure
-
-```text
+```
 resume-analyzer/
-├── app.py                  # Flask server + API routes
-├── analyzer.py             # Resume parsing, scoring & suggestions
-├── ml_models.py            # SBERT, spaCy & XGBoost integrations
-├── train_ats_model.py      # Offline ATS model trainer
+├── app.py               Flask server + API routes
+├── analyzer.py          Parsing, scoring, and suggestion logic
+├── ml_models.py         SBERT / spaCy model integrations
 ├── requirements.txt
-├── index.html              # Frontend UI
-├── style.css               # Styling and dashboard design
-├── script.js               # Frontend logic & API communication
-└── README.md
+├── index.html
+├── style.css
+└── script.js
 ```
 
-> `app.py` serves the frontend directly, so a **single Flask process runs the entire application**.
+`app.py` serves `index.html`, `style.css`, and `script.js` directly, so a
+single Flask process runs the whole app — no separate frontend server needed.
 
----
+## Machine learning models used
 
-## 🧠 Machine Learning Pipeline
+On top of the rule-based scoring engine, SCANLINE uses two real ML models
+(both in `ml_models.py`). Each degrades gracefully to a rule-based
+fallback if its package or model file isn't installed, so the app still
+works end-to-end without either of them.
 
-SCANLINE combines **rule-based NLP** with **three real ML models** for more accurate analysis.
+| Model | Role | Where it's used |
+|---|---|---|
+| **Sentence-BERT** (`all-MiniLM-L6-v2`, via `sentence-transformers`) | Semantic resume ↔ job-description matching — catches meaning overlap ("led a team of engineers" vs. "managed engineering staff") that keyword/TF-IDF overlap misses. Falls back to TF-IDF cosine similarity if unavailable. | `jd_match_score()` → the JD similarity score and required/preferred keyword match |
+| **spaCy** (`en_core_web_sm`, NER + PhraseMatcher) | Structured extraction of **education** (degree / institution / year), **work experience** (title / organization / dates), and **certifications**, plus an NER-based cross-check pass on skills. | `score_resume()` → the "Extracted profile" card in the UI |
 
-| Model                                  | Purpose                                                    |
-| -------------------------------------- | ---------------------------------------------------------- |
-| **Sentence-BERT** (`all-MiniLM-L6-v2`) | Semantic resume ↔ job description similarity               |
-| **spaCy** (`en_core_web_sm`)           | Extracts education, experience, certifications, and skills |
-| **XGBoost**                            | Predicts ATS parseability score (0–100)                    |
+ATS-parseability scoring (tables, images, multi-column layout, missing
+headers, etc.) is the plain rule-based Low/Medium/High checklist in
+`analyze_ats_risk()` — an earlier version also layered a "learned" XGBoost
+score on top, but that model was trained on synthetic labels derived from
+the same rule-based heuristics rather than real labeled ATS outcomes, so
+it wasn't contributing independent signal. It's been removed in favor of
+just the transparent rule-based checklist.
 
-All models **degrade gracefully** if unavailable, ensuring the application still works with the rule-based engine.
+The `/api/health` endpoint reports which of the two models actually loaded
+in your environment, e.g.:
 
----
-
-## 📦 Installation
-
-### 1️⃣ Clone the repository
-
-```bash
-git clone https://github.com/your-username/scanline-ai-resume-analyzer.git
-cd scanline-ai-resume-analyzer
+```json
+{"ml_models": {"sbert_jd_matching": true, "spacy_entity_extraction": true}}
 ```
 
-### 2️⃣ Create a virtual environment
+## Setup
+
+From inside this folder:
 
 ```bash
-python -m venv venv
-```
-
-### 3️⃣ Activate it
-
-**Linux / macOS**
-
-```bash
-source venv/bin/activate
-```
-
-**Windows**
-
-```bash
-venv\\Scripts\\activate
-```
-
-### 4️⃣ Install dependencies
-
-```bash
+python3 -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
----
+`requirements.txt` installs spaCy's small English model directly from its
+GitHub release wheel, so no separate `python -m spacy download` step is
+needed — there's no separate training or model-download step for anything
+in this project.
 
-## ▶️ Run the Application
 
-```bash
-python app.py
-```
-
-> **Important:** Do **not** open `index.html` directly using `file://`. Always run the Flask server first.
-
----
-
-## 📊 How Scoring Works
-
-| Component           | What It Evaluates                                      |
-| ------------------- | ------------------------------------------------------ |
-| **Structure Score** | Resume sections, contact info, formatting, length      |
-| **Content Score**   | Action verbs, quantified achievements, weak phrases    |
-| **Skills Score**    | Coverage of technical & professional skills            |
-| **JD Match**        | TF-IDF + semantic similarity against a job description |
-
-The **overall score** is a weighted blend of these components.
-
----
-
-## 📌 Advanced Analysis Features
-
-### ✅ Section-wise Resume Score
-
-Each section receives its own **0–100 score**:
-
-* Contact
-* Summary
-* Experience
-* Education
-* Skills
-* Projects
-
----
-
-### 📋 Resume Completeness Score
-
-Checks whether the resume includes:
-
-* Email
-* Phone number
-* LinkedIn profile
-* Experience section
-* Education section
-* Skills section
-* Quantified achievements
-
----
-
-### ⚠️ ATS Risk Analysis
-
-Detects formatting patterns that commonly break ATS parsers:
-
-* Tables used for layout
-* Embedded images/logos
-* Multi-column layouts
-* Non-standard bullet symbols
-* Missing standard section headers
-
-Returns **Low / Medium / High** risk with improvement tips.
-
----
-
-### 🛡️ Personal Info & Bias-Risk Check
-
-Flags potentially problematic demographic details such as:
-
-* Photo references
-* Date of birth / age
-* Marital status
-* Nationality
-* Gender
-* Religion
-
-This feature is **advisory only** and does **not affect the ATS score**.
-
----
-
-### 🔍 Highlighted Resume View
-
-Visual feedback directly inside the extracted resume text:
-
-* 🟥 Weak sentences and buzzwords
-* 🟩 Matched skills and keywords
-* 🟨 Missing JD keywords listed separately
-
----
-
-### ♻️ Duplicate Content Detection
-
-Detects:
-
-* Repeated skills
-* Duplicate sentences
-* Near-identical bullet points across projects or jobs
-* Possible keyword stuffing
-
----
-
-### ✍️ Bullet Point Rewriter
-
-Automatically rewrites weak bullets by:
-
-* Adding stronger action verbs
-* Suggesting measurable outcomes
-* Improving project descriptions with technology context
-
----
-
-**Form fields**
-
-| Field             | Type | Required |
-| ----------------- | ---- | -------- |
-| `resume`          | File | ✅        |
-| `job_description` | Text | ❌        |
-| `target_role`     | Text | ❌        |
-
----
-
-## 📄 Supported File Types
-
-* **PDF**
-* **DOCX**
-* **TXT**
-
-**Maximum size:** `5 MB`
-
----
-
-## 🛠️ Retraining the ATS Model
-
-If you want to retrain the XGBoost ATS model:
+## Run
 
 ```bash
-python train_ats_model.py
+python3 app.py
 ```
 
-This generates a fresh `ats_model.joblib` file using the synthetic ATS training data defined in `ml_models.py`.
+Then open http://localhost:5000 in your browser. Don't open `index.html`
+directly by double-clicking it — it needs to be served by Flask so it can
+reach the `/api/analyze` endpoint. Always start it with `python3 app.py`.
 
----
+## How scoring works
 
-## 🔧 Tech Stack
+| Component | What it checks |
+|---|---|
+| **Structure score** | Contact info present, key sections found (Experience, Education, Skills, Summary), sensible resume length |
+| **Content score** | Ratio of bullet points starting with strong action verbs, use of quantified achievements (numbers/%), overused buzzwords |
+| **Skills score** | Coverage against a curated database of programming languages, frameworks, tools, and soft skills |
+| **JD match** (optional) | TF-IDF cosine similarity between resume and job description, plus matched/missing keyword lists |
 
-### Backend
+The overall score is a weighted blend of these components (weighted more
+heavily toward JD match when a job description is supplied).
 
-* **Python 3.9+**
-* **Flask**
-* **Flask-CORS**
-* **Scikit-Learn**
-* **XGBoost**
-* **spaCy**
-* **Sentence-Transformers**
-* **FlashText**
-* **pdfplumber**
-* **python-docx**
+### Section-wise resume score
 
-### Frontend
+The resume is split into its Contact / Summary / Experience / Education /
+Skills / Projects zones (by locating standard section headers), and each
+zone gets its own 0-100 score — so you can see exactly which section is
+dragging the resume down instead of just one overall number.
 
-* **HTML5**
-* **CSS3**
-* **Vanilla JavaScript**
-* **Chart.js**
+### Resume completeness score
 
----
+A simple checklist-style score (0-100%) answering "is everything here?" —
+email, phone, LinkedIn, each major section, enough listed skills, and at
+least one quantified achievement. This is deliberately separate from the
+quality-focused structure/content scores above.
 
-## 📈 Future Improvements
+### ATS risk analysis
 
-* 🌍 Multi-language resume support
-* 📑 Resume version comparison
-* ☁️ Optional cloud deployment 
-* 🧪 Real-world ATS outcome training data 
+Flags formatting choices that commonly break Applicant Tracking System
+parsers: tables used for layout, embedded images/logos, likely multi-column
+layouts, non-standard bullet/icon glyphs, and missing standard section
+headers. Returns an overall Low/Medium/High risk level plus a tip for each
+issue found. This is a heuristic proxy — it can only see what a parser could
+extract, the same limitation a real ATS has.
 
----
+### Personal info & bias-risk check
 
-## 🤝 Contributing
+Scans for demographic details that are common on resume templates in some
+regions — a photo, date of birth/age, marital status, nationality, gender,
+religion — but that many employers hiring in the US, UK, Canada, and the EU
+specifically don't want to see. Several of these are protected
+characteristics, so some companies' ATS platforms and hiring policies are
+configured to flag or auto-reject applications that include them rather
+than take on discrimination risk. Purely advisory (Clean/Low/Medium/High) —
+it never changes `structure_score`, `overall_score`, or any other existing
+score.
 
-Contributions are welcome!
+### Highlighted resume
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to your branch
-5. Open a Pull Request
+Renders your resume's own extracted text back on the page — not just
+scores — with weak sentences/bullets marked in one color and keywords
+matched against your skills (or the job description / target role, when
+supplied) marked in another, so you can see exactly *where* an issue lives
+instead of only reading it as a number. Keywords the job description or
+target role calls for but that don't appear anywhere in your resume are
+listed separately underneath (they obviously can't be highlighted inside
+text that doesn't contain them).
 
----
+### Duplicate content detection
 
-## ⭐ Show Your Support
+Scans for redundancy that the section/content scores above wouldn't
+otherwise catch:
 
-If you found this project useful, please consider giving it a **⭐ star** on GitHub — it helps others discover the project and motivates further development!
+- **Repeated skills** — the same skill listed twice in the Skills section
+  (a copy-paste slip), or a skill mentioned so many times across the whole
+  document that it looks like deliberate keyword stuffing.
+- **Repeated sentences** — identical sentences appearing more than once,
+  often a sign of a resume stitched together from a template or old draft.
+- **Repeated bullet points** — bullets duplicated verbatim across different
+  jobs/projects, plus near-identical bullets that differ only by a number
+  (e.g. the same "migrated X to microservices, cutting latency by N%" claim
+  reused for two different roles).
 
----
+This is a reporting layer only — it doesn't change `structure_score`,
+`content_score`, `skills_score`, or any other existing score.
+
+### Bullet point rewrite
+
+Finds the weakest bullet points across both your Experience and Projects
+sections (ones that don't start with a strong action verb or don't include
+a quantified result) and suggests a rewrite for each, using a local
+rule-based rewriter — one unified feature covering both sections, with each
+suggestion tagged by where it came from. Bullets sourced from Projects get
+an extra check for a named tech stack, since that's a signal recruiters
+specifically look for there.
+
+## Supported file types
+
+PDF, DOCX, and TXT — up to 5MB.
+
+## Troubleshooting
+
+- **"No resume file uploaded" / nothing happens when you click Run scan**:
+  make sure you're visiting `http://localhost:5000` (served by Flask), not
+  opening `index.html` as a local `file://` path.
+- **`pip install` fails on an old Python version**: this project targets
+  Python 3.9+. Check your version with `python3 --version`.
+- **Port already in use**: run with a different port,
+  `PORT=5050 python3 app.py`, then visit `http://localhost:5050`.
+
+## Notes
+
+- All parsing and scoring happens on your own server; nothing is sent
+  anywhere else.
+- The skills database and keyword lists are intentionally editable —
+  open `analyzer.py` and extend `SKILL_DB`, `ACTION_VERBS`, or
+  `WEAK_PHRASES` to tune it to your industry.

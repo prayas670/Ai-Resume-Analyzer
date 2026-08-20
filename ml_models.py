@@ -1,26 +1,27 @@
 """
-Home for the three ML models used alongside the rule-based engine in
+Home for the two ML models used alongside the rule-based engine in
 analyzer.py:
 
   1. Sentence-BERT (SBERT)       -> resume <-> job description matching
   2. spaCy (NER + PhraseMatcher) -> structured extraction of skills,
      education, work experience, and certifications
-  3. XGBoost                    -> learned ATS-parseability score (0-100)
 Every model degrades gracefully to None/empty if its package or model file
 isn't installed, and analyzer.py falls back to rule-based behaviour.
+
+ATS-parseability scoring (tables, images, multi-column layout, missing
+headers, etc.) is handled entirely by the rule-based checklist in
+analyzer.analyze_ats_risk() — an earlier version of this file also shipped
+a learned XGBoost score alongside it, but that model was trained on
+synthetic labels generated from those same rule-based heuristics rather
+than on real labeled ATS outcomes, so it wasn't adding independent signal.
+It's been removed in favor of just the transparent rule-based checklist.
 """
 
-import os
 import re
 import logging
 
-import numpy as np
-
-MODEL_DIR = os.path.dirname(os.path.abspath(__file__))
-ATS_MODEL_PATH = os.path.join(MODEL_DIR, "ats_model.joblib")
-
 # 1. Sentence-BERT — resume <-> job description semantic similarity
-# (This also backs analyzer.jd_match_score - kept here so all three "model"
+# (This also backs analyzer.jd_match_score - kept here so both "model"
 # integrations live in one place and are easy to find/swap.)
 
 try:
@@ -250,151 +251,3 @@ def extract_entities_spacy(text, skill_vocab=None, experience_text=None, educati
         "ner_skills": sorted(ner_skills),
     }
 
-# 3. XGBoost — learned ATS-parseability score
-# No public labeled "did this resume pass an ATS" dataset exists, so this
-# model trains on synthetic feature vectors labeled from the same
-# structural heuristics the rule-based checker uses. This lets it learn
-# non-linear interactions (e.g. tables are worse when headers are also
-# non-standard) instead of flat point deductions. Swap in a real labeled
-# dataset here later if one becomes available.
-
-ATS_FEATURE_NAMES = [
-    "word_count",
-    "has_email",
-    "has_phone",
-    "has_linkedin",
-    "num_core_sections",       # experience/education/skills/summary found, 0-4
-    "has_tables",
-    "has_images",
-    "gap_line_ratio",          # fraction of lines with big internal gaps (multi-column signal)
-    "has_unusual_bullets",
-    "matched_standard_headers",  # of experience/education/skills, 0-3
-    "skills_count",
-    "bullet_count",
-    "quantified_bullet_ratio",
-]
-
-try:
-    import joblib
-except ImportError:
-    joblib = None
-try:
-    import xgboost as xgb
-except ImportError:
-    xgb = None
-_ats_model = None
-_ats_model_load_attempted = False
-
-def build_ats_feature_vector(
-    word_count, has_email, has_phone, has_linkedin, num_core_sections,
-    has_tables, has_images, gap_line_ratio, has_unusual_bullets,
-    matched_standard_headers, skills_count, bullet_count,
-    quantified_bullet_ratio,
-):
-    return np.array([[
-        word_count, int(has_email), int(has_phone), int(has_linkedin),
-        num_core_sections, int(has_tables), int(has_images), gap_line_ratio,
-        int(has_unusual_bullets), matched_standard_headers, skills_count,
-        bullet_count, quantified_bullet_ratio,
-    ]], dtype=float)
-def _synthetic_ats_training_data(n=6000, seed=42):
-    """Generates random-but-plausible resumes-as-feature-vectors plus a
-    noisy proxy label built from domain heuristics, for training only."""
-    rng = np.random.default_rng(seed)
-    word_count = rng.integers(80, 1400, n)
-    has_email = rng.integers(0, 2, n)
-    has_phone = rng.integers(0, 2, n)
-    has_linkedin = rng.integers(0, 2, n)
-    num_core_sections = rng.integers(0, 5, n)
-    has_tables = rng.integers(0, 2, n)
-    has_images = rng.integers(0, 2, n)
-    gap_line_ratio = rng.random(n) * 0.4
-    has_unusual_bullets = rng.integers(0, 2, n)
-    matched_standard_headers = rng.integers(0, 4, n)
-    skills_count = rng.integers(0, 30, n)
-    bullet_count = rng.integers(0, 40, n)
-    quantified_bullet_ratio = rng.random(n)
-    X = np.column_stack([
-        word_count, has_email, has_phone, has_linkedin, num_core_sections,
-        has_tables, has_images, gap_line_ratio, has_unusual_bullets,
-        matched_standard_headers, skills_count, bullet_count,
-        quantified_bullet_ratio,
-    ]).astype(float)
-    length_score = np.where(
-        (word_count >= 350) & (word_count <= 900), 15,
-        np.clip(15 - np.abs(word_count - 625) / 60, 0, 15),
-    )
-    y = (
-        has_email * 12
-        + has_phone * 6
-        + has_linkedin * 4
-        + num_core_sections * 6
-        + length_score
-        - has_tables * 18
-        - has_images * 10
-        - gap_line_ratio * 40
-        - has_unusual_bullets * 6
-        + matched_standard_headers * 8
-        + np.clip(skills_count, 0, 15) * 1.2
-        + np.clip(bullet_count, 0, 20) * 0.6
-        + quantified_bullet_ratio * 10
-        # interaction: tables AND non-standard headers compound badly
-        - (has_tables * (matched_standard_headers < 2)) * 10
-    )
-    y = y + rng.normal(0, 4, n)  # label noise
-    y = np.clip(y, 0, 100)
-    return X, y
-def train_ats_xgboost_model(save_path=ATS_MODEL_PATH):
-    """Trains the XGBoost ATS-score regressor on synthetic data and saves
-    it with joblib. Run this offline (see train_ats_model.py); analyzer.py
-    only ever loads the saved model at request time."""
-    if xgb is None or joblib is None:
-        raise RuntimeError("xgboost and joblib must be installed to train the ATS model.")
-    X, y = _synthetic_ats_training_data()
-    model = xgb.XGBRegressor(
-        n_estimators=200,
-        max_depth=4,
-        learning_rate=0.08,
-        subsample=0.9,
-        colsample_bytree=0.9,
-        objective="reg:squarederror",
-        random_state=42,
-    )
-    model.fit(X, y)
-    joblib.dump({"model": model, "feature_names": ATS_FEATURE_NAMES}, save_path)
-    return model
-def get_ats_model():
-    global _ats_model, _ats_model_load_attempted
-    if _ats_model_load_attempted:
-        return _ats_model
-    _ats_model_load_attempted = True
-    if joblib is None or not os.path.exists(ATS_MODEL_PATH):
-        return None
-    try:
-        bundle = joblib.load(ATS_MODEL_PATH)
-        _ats_model = bundle["model"]
-    except Exception:
-        _ats_model = None
-    return _ats_model
-def predict_ats_score(feature_vector):
-    """Returns a 0-100 predicted ATS-parseability score, or None if the
-    model isn't available (caller should rely on the rule-based risk_level
-    alone in that case)."""
-    model = get_ats_model()
-    if model is None:
-        return None
-    try:
-        pred = float(model.predict(feature_vector)[0])
-        return round(max(0.0, min(100.0, pred)), 1)
-    except Exception:
-        return None
-def ats_feature_importances():
-    """Returns {feature_name: importance} for the trained model, or None."""
-    model = get_ats_model()
-    if model is None:
-        return None
-    try:
-        importances = model.feature_importances_
-        return {name: round(float(imp), 4) for name, imp in zip(ATS_FEATURE_NAMES, importances)}
-    except Exception:
-        return None

@@ -18,8 +18,6 @@ import ml_models
 from ml_models import (
     sbert_similarity,
     extract_entities_spacy,
-    build_ats_feature_vector,
-    predict_ats_score,
 )
 
 def get_st_model():
@@ -977,34 +975,9 @@ def analyze_ats_risk(filepath, filename, text):
     else:
         level = "Low"
 
-    # XGBoost: a learned 0-100 ATS-parseability score alongside the
-    # rule-based risk_level/issues above.
-    contact = extract_contact_info(text)
-    sections = detect_sections(text)
-    skills_found = extract_skills(text)
-    strong_bullets, total_bullets = count_action_verb_bullets(text)
-    quantified = count_quantified_bullets(text)
-    num_core_sections = sum(1 for k in ["experience", "education", "skills", "summary"] if sections.get(k))
-    features = build_ats_feature_vector(
-        word_count=len(re.findall(r"\w+", text)),
-        has_email=bool(contact["email"]),
-        has_phone=bool(contact["phone"]),
-        has_linkedin=bool(contact["linkedin"]),
-        num_core_sections=num_core_sections,
-        has_tables=has_tables,
-        has_images=has_images,
-        gap_line_ratio=(gap_lines / max(len(text.splitlines()), 1)),
-        has_unusual_bullets=bool(UNUSUAL_BULLET_CHARS.search(text)),
-        matched_standard_headers=matched_sections,
-        skills_count=len(skills_found),
-        bullet_count=total_bullets,
-        quantified_bullet_ratio=(quantified / max(total_bullets, 1)),
-    )
-    ml_score = predict_ats_score(features)
     return {
         "risk_level": level,
         "issues": issues,
-        "ml_ats_score": ml_score,
         # Surfaced separately (not just folded into `issues`) so the personal-info
         # privacy check below can flag "photo present" as its own item without
         # having to re-open and re-parse the PDF/DOCX file a second time.

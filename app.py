@@ -24,13 +24,12 @@ def index():
 def health():
     return jsonify({
         "status": "ok",
-        # Surfaces which of the three ML integrations are actually active in
-        # this deployment (each degrades gracefully to rule-based logic if
-        # its package/model file is missing) — handy for debugging setup.
+        # Surfaces which of the ML integrations are actually active in this
+        # deployment (each degrades gracefully to rule-based logic if its
+        # package/model file is missing) — handy for debugging setup.
         "ml_models": {
             "sbert_jd_matching": ml_models.get_sbert_model() is not None,
             "spacy_entity_extraction": ml_models.get_spacy_nlp() is not None,
-            "xgboost_ats_score": ml_models.get_ats_model() is not None,
         },
     })
 @app.route("/api/analyze", methods=["POST"])

@@ -383,14 +383,6 @@ function renderAtsRisk(atsRisk) {
   const badge = document.getElementById("riskBadge");
   badge.textContent = `${atsRisk.risk_level} risk`;
   badge.className = `risk-badge ${atsRisk.risk_level.toLowerCase()}`;
-  const mlLine = document.getElementById("atsMlScoreLine");
-  const mlValue = document.getElementById("atsMlScoreValue");
-  if (atsRisk.ml_ats_score !== null && atsRisk.ml_ats_score !== undefined) {
-    mlLine.hidden = false;
-    mlValue.textContent = atsRisk.ml_ats_score;
-  } else if (mlLine) {
-    mlLine.hidden = true;
-  }
   const list = document.getElementById("atsIssues");
   list.innerHTML = "";
   if (!atsRisk.issues.length) {
